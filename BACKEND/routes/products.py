@@ -1,0 +1,323 @@
+"""
+Product Routes for BlessedNet Wholesale Hub
+Handles product catalog, search, filtering, and admin operations
+"""
+
+from flask import Blueprint, request, jsonify, current_app
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from models import db, Product, User
+from datetime import datetime
+from sqlalchemy import and_, or_
+from utils.security import safe_error_response
+
+products_bp = Blueprint('products', __name__, url_prefix='/api/products')
+
+def is_admin(user_id):
+    """Check if user is admin"""
+    user = User.query.get(user_id)
+    return user and user.is_admin
+
+
+@products_bp.route('', methods=['GET'])
+def get_products():
+    """
+    Get all products with optional filtering and pagination
+    
+    Query parameters:
+    - category: filter by category
+    - search: search by name or description
+    - sort: sort by (name, price, rating, created_at)
+    - order: asc or desc
+    - page: page number (default 1)
+    - limit: items per page (default 20, max 100)
+    - trending: show only trending (true/false)
+    - featured: show only featured (true/false)
+    - flash_sale: show only flash sale (true/false)
+    """
+    try:
+        # Get query parameters
+        category = request.args.get('category', '').strip()
+        search = request.args.get('search', '').strip()
+        sort = request.args.get('sort', 'created_at')
+        order = request.args.get('order', 'desc').lower()
+        page = request.args.get('page', 1, type=int)
+        limit = min(int(request.args.get('limit', 20)), 100)  # Max 100 items
+        trending = request.args.get('trending', '').lower() == 'true'
+        featured = request.args.get('featured', '').lower() == 'true'
+        flash_sale = request.args.get('flash_sale', '').lower() == 'true'
+        
+        # Validate pagination
+        if page < 1:
+            page = 1
+        if limit < 1:
+            limit = 20
+        
+        # Build query
+        query = Product.query
+        
+        # Apply filters
+        if category:
+            query = query.filter_by(category=category)
+        
+        if search:
+            query = query.filter(
+                or_(
+                    Product.name.ilike(f'%{search}%'),
+                    Product.description.ilike(f'%{search}%')
+                )
+            )
+        
+        if trending:
+            query = query.filter_by(is_trending=True)
+        
+        if featured:
+            query = query.filter_by(is_featured=True)
+        
+        if flash_sale:
+            query = query.filter_by(is_flash_sale=True)
+        
+        # Apply sorting
+        valid_sorts = ['name', 'price', 'rating', 'created_at']
+        if sort not in valid_sorts:
+            sort = 'created_at'
+        
+        sort_column = getattr(Product, sort)
+        if order == 'asc':
+            query = query.order_by(sort_column.asc())
+        else:
+            query = query.order_by(sort_column.desc())
+        
+        # Paginate
+        paginate = query.paginate(page=page, per_page=limit, error_out=False)
+        
+        products = [product.to_dict() for product in paginate.items]
+        
+        return jsonify({
+            'message': 'Products retrieved successfully',
+            'data': {
+                'products': products,
+                'pagination': {
+                    'page': page,
+                    'limit': limit,
+                    'total': paginate.total,
+                    'pages': paginate.pages,
+                    'has_next': paginate.has_next,
+                    'has_prev': paginate.has_prev
+                }
+            }
+        }), 200
+    
+    except Exception as e:
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to retrieve products')
+
+
+@products_bp.route('/categories', methods=['GET'])
+def get_categories():
+    """Get all unique product categories"""
+    try:
+        categories = db.session.query(Product.category).distinct().order_by(Product.category).all()
+        categories = [category[0] for category in categories if category[0]]
+        return jsonify({
+            'message': 'Categories retrieved successfully',
+            'data': categories
+        }), 200
+    except Exception as e:
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to retrieve categories')
+
+
+@products_bp.route('/<int:product_id>', methods=['GET'])
+def get_product(product_id):
+    """Get a single product by ID"""
+    try:
+        product = Product.query.get(product_id)
+        
+        if not product:
+            return jsonify({'error': 'Product not found'}), 404
+        
+        return jsonify({
+            'message': 'Product retrieved successfully',
+            'data': product.to_dict()
+        }), 200
+    
+    except Exception as e:
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to retrieve product')
+
+
+@products_bp.route('', methods=['POST'])
+@jwt_required()
+def create_product():
+    """
+    Create a new product (admin only)
+    
+    Request body:
+    {
+        "name": "Product Name",
+        "description": "Product description",
+        "category": "Electronics",
+        "price": 99.99,
+        "discount_percent": 10,
+        "image_url": "https://example.com/image.jpg",
+        "sku": "PROD-001",
+        "stock_quantity": 100,
+        "rating": 4.5,
+        "is_featured": false,
+        "is_trending": false,
+        "is_flash_sale": false
+    }
+    """
+    try:
+        user_id = get_jwt_identity()
+        
+        if not is_admin(user_id):
+            return jsonify({'error': 'Admin access required'}), 403
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        # Validate required fields
+        required_fields = ['name', 'category', 'price']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'error': f'{field} is required'}), 400
+        
+        # Check if SKU already exists
+        if data.get('sku') and Product.query.filter_by(sku=data['sku']).first():
+            return jsonify({'error': 'SKU already exists'}), 409
+        
+        # Create product
+        product = Product(
+            name=data['name'].strip(),
+            description=data.get('description', '').strip(),
+            category=data['category'].strip(),
+            price=float(data['price']),
+            discount_percent=float(data.get('discount_percent', 0)),
+            image_url=data.get('image_url', ''),
+            sku=data.get('sku', ''),
+            stock_quantity=int(data.get('stock_quantity', 0)),
+            rating=float(data.get('rating', 5.0)),
+            is_featured=bool(data.get('is_featured', False)),
+            is_trending=bool(data.get('is_trending', False)),
+            is_flash_sale=bool(data.get('is_flash_sale', False))
+        )
+        
+        db.session.add(product)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Product created successfully',
+            'data': product.to_dict(include_stock=True)
+        }), 201
+    
+    except ValueError:
+        db.session.rollback()
+        return jsonify({'error': 'Invalid data format. Check field types.'}), 400
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to create product')
+
+
+@products_bp.route('/<int:product_id>', methods=['PUT'])
+@jwt_required()
+def update_product(product_id):
+    """
+    Update a product (admin only)
+    
+    Request body:
+    Any fields that need to be updated
+    """
+    try:
+        user_id = get_jwt_identity()
+        
+        if not is_admin(user_id):
+            return jsonify({'error': 'Admin access required'}), 403
+        
+        product = Product.query.get(product_id)
+        
+        if not product:
+            return jsonify({'error': 'Product not found'}), 404
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        # Update allowed fields
+        allowed_fields = [
+            'name', 'description', 'category', 'price', 'discount_percent',
+            'image_url', 'stock_quantity', 'rating', 'is_featured',
+            'is_trending', 'is_flash_sale', 'flash_sale_end'
+        ]
+        
+        for field in allowed_fields:
+            if field in data:
+                if field == 'price' or field == 'discount_percent' or field == 'rating':
+                    setattr(product, field, float(data[field]))
+                elif field == 'stock_quantity':
+                    setattr(product, field, int(data[field]))
+                elif field in ['is_featured', 'is_trending', 'is_flash_sale']:
+                    setattr(product, field, bool(data[field]))
+                else:
+                    setattr(product, field, data[field].strip() if isinstance(data[field], str) else data[field])
+        
+        product.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Product updated successfully',
+            'data': product.to_dict(include_stock=True)
+        }), 200
+    
+    except ValueError:
+        db.session.rollback()
+        return jsonify({'error': 'Invalid data format. Check field types.'}), 400
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to update product')
+
+
+@products_bp.route('/<int:product_id>', methods=['DELETE'])
+@jwt_required()
+def delete_product(product_id):
+    """Delete a product (admin only)"""
+    try:
+        user_id = get_jwt_identity()
+        
+        if not is_admin(user_id):
+            return jsonify({'error': 'Admin access required'}), 403
+        
+        product = Product.query.get(product_id)
+        
+        if not product:
+            return jsonify({'error': 'Product not found'}), 404
+        
+        db.session.delete(product)
+        db.session.commit()
+        
+        return jsonify({'message': 'Product deleted successfully'}), 200
+    
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to delete product')
+
+
+@products_bp.route('/categories', methods=['GET'])
+def get_categories():
+    """Get all product categories"""
+    try:
+        categories = db.session.query(Product.category).distinct().all()
+        categories = [cat[0] for cat in categories if cat[0]]
+        
+        return jsonify({
+            'message': 'Categories retrieved successfully',
+            'data': sorted(categories)
+        }), 200
+    
+    except Exception as e:
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to retrieve categories')
