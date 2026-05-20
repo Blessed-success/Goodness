@@ -127,7 +127,7 @@ const Header = () => {
                 className="ml-2 text-gray-600 hover:text-blue-600 transition text-xl p-2"
                 title="Search by voice"
               >
-                <BsMicrophone size={20} />
+                <BsMic size={20} />
               </button>
             </div>
           </form>
