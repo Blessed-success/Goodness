@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FiSearch, FiShoppingCart, FiUser, FiMenu, FiX } from 'react-icons/fi';
-import { BsMicrophone } from 'react-icons/bs';
+import { BsMic } from 'react-icons/bs';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 
