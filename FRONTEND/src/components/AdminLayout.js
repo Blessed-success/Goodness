@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { FiTarget } from 'react-icons/fi';
 import { FiMenu, FiX, FiLogOut, FiHome, FiBox, FiShoppingCart, FiUsers, FiBarChart3, FiUpload, FiMapPin, FiFileText, FiTrendingUp, FiMessageSquare } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 
