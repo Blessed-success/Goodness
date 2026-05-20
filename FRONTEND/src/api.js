@@ -2,6 +2,7 @@
  * API Configuration and Client
  * Centralized API calls for all backend endpoints
  */
+import axios from 'axios';
 
 // Production API URL
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://api.ever-flourishing.com/api';
