@@ -18,30 +18,28 @@ const HomePage = () => {
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+  }, [fetchProducts]); // Added fetchProducts dependency safely
 
   useEffect(() => {
-    // Update countdown timer every second
+    updateCountdowns(); 
+
     const interval = setInterval(() => {
       updateCountdowns();
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [flashSaleProducts]);
+  }, [updateCountdowns]);
 
-  const fetchProducts = async () => {
+  const fetchProducts = React.useCallback(async () => {
     try {
       setLoading(true);
 
-      // Fetch featured products
       const featuredRes = await productsAPI.getAll({ featured: true, limit: 6 });
       setProducts(featuredRes.data.data.products);
 
-      // Fetch trending products
       const trendingRes = await productsAPI.getAll({ trending: true, limit: 6 });
       setTrendingProducts(trendingRes.data.data.products);
 
-      // Fetch flash sale products
       const flashRes = await productsAPI.getAll({ flash_sale: true, limit: 6 });
       setFlashSaleProducts(flashRes.data.data.products);
     } catch (error) {
@@ -49,9 +47,10 @@ const HomePage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // Empty array means this function never changes
 
-  const updateCountdowns = () => {
+  // 2. Wrap updateCountdowns in useCallback
+  const updateCountdowns = React.useCallback(() => {
     const countdowns = {};
     flashSaleProducts.forEach((product) => {
       if (product.flash_sale_end) {
@@ -71,7 +70,7 @@ const HomePage = () => {
       }
     });
     setFlashSaleCountdown(countdowns);
-  };
+  }, [flashSaleProducts]); 
 
   return (
     <div className="min-h-screen bg-gray-50">
