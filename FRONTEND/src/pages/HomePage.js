@@ -16,21 +16,7 @@ const HomePage = () => {
   const [loading, setLoading] = useState(true);
   const [flashSaleCountdown, setFlashSaleCountdown] = useState({});
 
-  useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]); // Added fetchProducts dependency safely
-
-  useEffect(() => {
-    updateCountdowns(); 
-
-    const interval = setInterval(() => {
-      updateCountdowns();
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [updateCountdowns]);
-
-  const fetchProducts = React.useCallback(async () => {
+    const fetchProducts = React.useCallback(async () => {
     try {
       setLoading(true);
 
@@ -70,7 +56,21 @@ const HomePage = () => {
       }
     });
     setFlashSaleCountdown(countdowns);
-  }, [flashSaleProducts]); 
+  }, [flashSaleProducts]);
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]); // Added fetchProducts dependency safely
+
+  useEffect(() => {
+    updateCountdowns(); 
+
+    const interval = setInterval(() => {
+      updateCountdowns();
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [updateCountdowns]);
+ 
 
   return (
     <div className="min-h-screen bg-gray-50">
