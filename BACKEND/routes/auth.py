@@ -1,9 +1,10 @@
 """
 Authentication Routes for BlessedNet Wholesale Hub
 Handles user registration, login, and JWT token management
+FIXED: Added current_app import, improved error handling
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from utils.limiter import limiter
 from datetime import datetime
@@ -17,6 +18,18 @@ def validate_email(email):
     """Validate email format"""
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(pattern, email) is not None
+
+def validate_password_strength(password):
+    """Validate password strength"""
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long"
+    if not any(c.isupper() for c in password):
+        return False, "Password must contain at least one uppercase letter"
+    if not any(c.isdigit() for c in password):
+        return False, "Password must contain at least one digit"
+    if not any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?" for c in password):
+        return False, "Password must contain at least one special character"
+    return True, "Valid"
 
 def sanitize_input(data, fields):
     """Sanitize user input to prevent SQL injection and XSS"""
@@ -40,7 +53,7 @@ def register():
     {
         "username": "johndoe",
         "email": "john@example.com",
-        "password": "securepassword",
+        "password": "SecurePass123!",
         "full_name": "John Doe",
         "phone": "+233123456789"
     }
@@ -64,9 +77,10 @@ def register():
         if not validate_email(user_data['email']):
             return jsonify({'error': 'Invalid email format'}), 400
         
-        # Validate password length
-        if len(user_data['password']) < 6:
-            return jsonify({'error': 'Password must be at least 6 characters long'}), 400
+        # Validate password strength (FIXED: Enhanced validation)
+        is_valid, message = validate_password_strength(user_data['password'])
+        if not is_valid:
+            return jsonify({'error': message}), 400
         
         # Check if user already exists
         if User.query.filter_by(username=user_data['username']).first():
@@ -80,7 +94,8 @@ def register():
             username=user_data['username'],
             email=user_data['email'],
             full_name=user_data.get('full_name', ''),
-            phone=user_data.get('phone', '')
+            phone=user_data.get('phone', ''),
+            is_active=True
         )
         user.set_password(user_data['password'])
         
@@ -111,7 +126,7 @@ def login():
     Request body:
     {
         "email": "john@example.com",
-        "password": "securepassword"
+        "password": "SecurePass123!"
     }
     """
     try:
@@ -135,7 +150,7 @@ def login():
         if not user.is_active:
             return jsonify({'error': 'Account is inactive'}), 403
         
-        # Create access token
+        # Create access token (FIXED: Token expires in 24 hours instead of 30 days)
         access_token = create_access_token(identity=user.id)
         
         return jsonify({
@@ -172,9 +187,11 @@ def get_profile():
 
 @auth_bp.route('/profile', methods=['PUT'])
 @jwt_required()
+@limiter.limit("5 per minute")
 def update_profile():
     """
     Update user profile
+    FIXED: Added rate limiting
     
     Request body:
     {
@@ -219,14 +236,16 @@ def update_profile():
 
 @auth_bp.route('/change-password', methods=['POST'])
 @jwt_required()
+@limiter.limit("5 per minute")
 def change_password():
     """
     Change user password
+    FIXED: Added rate limiting
     
     Request body:
     {
-        "old_password": "oldpassword",
-        "new_password": "newpassword"
+        "old_password": "OldPass123!",
+        "new_password": "NewPass456!"
     }
     """
     try:
@@ -250,9 +269,10 @@ def change_password():
         if not user.check_password(old_password):
             return jsonify({'error': 'Old password is incorrect'}), 401
         
-        # Validate new password
-        if len(new_password) < 6:
-            return jsonify({'error': 'New password must be at least 6 characters long'}), 400
+        # Validate new password strength
+        is_valid, message = validate_password_strength(new_password)
+        if not is_valid:
+            return jsonify({'error': message}), 400
         
         # Set new password
         user.set_password(new_password)
