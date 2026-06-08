@@ -1,11 +1,16 @@
 /**
  * API Configuration and Client
  * Centralized API calls for all backend endpoints
+ * FIXED: Dynamic API URL instead of hardcoded production URL
  */
 import axios from 'axios';
 
-// Production API URL
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://api.ever-flourishing.com/api';
+// FIXED: Use environment variable with fallback to dynamic localhost:5000
+// This allows the frontend to work both locally and in production
+const API_BASE_URL = process.env.REACT_APP_API_URL || 
+  `${window.location.protocol}//${window.location.hostname}:5000/api`;
+
+console.log('🔗 API Base URL:', API_BASE_URL);
 
 // Create axios instance
 const apiClient = axios.create({
@@ -32,10 +37,16 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid
+      // FIXED: Properly clear all auth data and redirect
+      console.warn('⚠️ Authentication expired or invalid');
       localStorage.removeItem('access_token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      // Notify all listeners
+      window.dispatchEvent(new Event('auth-logout'));
+      // Redirect to login
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
