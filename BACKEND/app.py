@@ -1,6 +1,7 @@
 """
 BlessedNet Wholesale Hub - Flask Backend
 Full-stack eCommerce application with JWT authentication, Paystack integration, and PostgreSQL
+FIXED: Corrected admin user creation, improved error handling, optimized token expiry
 """
 
 import os
@@ -12,6 +13,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 from database import db
+from sqlalchemy.exc import IntegrityError
 
 # Load environment variables
 load_dotenv()
@@ -26,7 +28,8 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'change-this-secret-key')
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'change-this-secret-key')
 app.config['PAYSTACK_SECRET_KEY'] = os.getenv('PAYSTACK_SECRET_KEY')
 app.config['PAYSTACK_PUBLIC_KEY'] = os.getenv('PAYSTACK_PUBLIC_KEY')
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=30)
+# FIXED: Reduced token expiry from 30 days to 24 hours for security
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
 app.config['JSON_SORT_KEYS'] = False
 
 # Initialize extensions
@@ -137,25 +140,32 @@ if __name__ == '__main__':
         db.create_all()
         print("✅ Database tables created successfully")
         
-        # Seed default admin user if not exists
+        # Seed default admin user if not exists (FIXED: Proper admin creation)
         admin_email = os.getenv('DEFAULT_ADMIN_EMAIL', 'admin@besthub.com')
         admin_password = os.getenv('DEFAULT_ADMIN_PASSWORD', 'Admin@123')
         
-        existing_admin = User.query.filter_by(email=admin_email).first()
-        if not existing_admin:
-            from werkzeug.security import generate_password_hash
-            admin_user = User(
-                email=admin_email,
-                password=generate_password_hash(admin_password),
-                full_name='System Administrator',
-                is_admin=True,
-                is_active=True
-            )
-            db.session.add(admin_user)
-            db.session.commit()
-            print(f"✅ Default admin user created: {admin_email}")
-        else:
-            print(f"ℹ️  Admin user already exists: {admin_email}")
+        try:
+            existing_admin = User.query.filter_by(email=admin_email).first()
+            if not existing_admin:
+                admin_user = User(
+                    username='admin',  # FIXED: Added required username field
+                    email=admin_email,
+                    full_name='System Administrator',
+                    is_admin=True,
+                    is_active=True
+                )
+                admin_user.set_password(admin_password)  # FIXED: Use proper password setter
+                db.session.add(admin_user)
+                db.session.commit()
+                print(f"✅ Default admin user created: {admin_email}")
+            else:
+                print(f"ℹ️  Admin user already exists: {admin_email}")
+        except IntegrityError as e:  # FIXED: Handle duplicate entry error
+            db.session.rollback()
+            print(f"⚠️  Admin user creation failed (may already exist): {str(e)}")
+        except Exception as e:
+            db.session.rollback()
+            print(f"❌ Error creating admin user: {str(e)}")
         
         # Seed default Ghana regions and cities if not exists
         if Region.query.count() == 0:
@@ -227,25 +237,32 @@ if __name__ == '__main__':
                 }
             ]
             
-            for region_data in regions_data:
-                region = Region(
-                    name=region_data['name'],
-                    delivery_fee=region_data['delivery_fee'],
-                    is_active=True
-                )
-                db.session.add(region)
-                db.session.flush()  # Get region ID
-                
-                for city_name in region_data['cities']:
-                    city = City(
-                        name=city_name,
-                        region_id=region.id,
+            try:
+                for region_data in regions_data:
+                    region = Region(
+                        name=region_data['name'],
+                        delivery_fee=region_data['delivery_fee'],
                         is_active=True
                     )
-                    db.session.add(city)
-            
-            db.session.commit()
-            print(f"✅ Default Ghana regions and cities seeded ({len(regions_data)} regions)")
+                    db.session.add(region)
+                    db.session.flush()  # Get region ID
+                    
+                    for city_name in region_data['cities']:
+                        city = City(
+                            name=city_name,
+                            region_id=region.id,
+                            is_active=True
+                        )
+                        db.session.add(city)
+                
+                db.session.commit()
+                print(f"✅ Default Ghana regions and cities seeded ({len(regions_data)} regions)")
+            except IntegrityError:
+                db.session.rollback()
+                print(f"ℹ️  Regions already exist ({Region.query.count()} regions)")
+            except Exception as e:
+                db.session.rollback()
+                print(f"❌ Error seeding regions: {str(e)}")
         else:
             print(f"ℹ️  Regions already exist ({Region.query.count()} regions)")
         
