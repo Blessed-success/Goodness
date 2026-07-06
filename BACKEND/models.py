@@ -1,11 +1,142 @@
 """
 Database Models for BlessedNet Wholesale Hub
 Defines all tables for users, products, orders, and cart functionality
+ADDED: AdminCredential model for secure credential management
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 from database import db
+import secrets
+import string
+
+class AdminCredential(db.Model):
+    """Model for managing admin/super admin credentials securely"""
+    __tablename__ = 'admin_credentials'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, unique=True)
+    
+    # Credential fields
+    username = db.Column(db.String(80), unique=True, nullable=False, index=True)
+    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    
+    # Security fields
+    is_active = db.Column(db.Boolean, default=True)
+    requires_password_change = db.Column(db.Boolean, default=False)
+    last_password_change = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login = db.Column(db.DateTime)
+    login_attempts = db.Column(db.Integer, default=0)
+    is_locked = db.Column(db.Boolean, default=False)
+    locked_until = db.Column(db.DateTime)
+    
+    # Access control
+    role = db.Column(db.String(50), default='admin')  # 'admin' or 'super_admin'
+    permissions = db.Column(db.Text)  # JSON string of permissions
+    
+    # Audit trail
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by = db.Column(db.String(120))  # Email of admin who made the change
+    
+    # Relationships
+    user = db.relationship('User', backref=db.backref('admin_credential', uselist=False))
+    password_history = db.relationship('PasswordHistory', back_populates='admin_credential', cascade='all, delete-orphan')
+    
+    def set_password(self, password):
+        """Hash and set password, maintaining history"""
+        self.password_hash = generate_password_hash(password)
+        self.last_password_change = datetime.utcnow()
+        self.requires_password_change = False
+        
+        # Add to password history
+        history = PasswordHistory(
+            admin_credential_id=self.id,
+            password_hash=self.password_hash,
+            changed_at=datetime.utcnow()
+        )
+        db.session.add(history)
+    
+    def check_password(self, password):
+        """Verify password"""
+        return check_password_hash(self.password_hash, password)
+    
+    def increment_login_attempts(self):
+        """Increment failed login attempts"""
+        self.login_attempts += 1
+        
+        # Lock account after 5 failed attempts for 30 minutes
+        if self.login_attempts >= 5:
+            self.is_locked = True
+            self.locked_until = datetime.utcnow() + timedelta(minutes=30)
+    
+    def reset_login_attempts(self):
+        """Reset login attempts on successful login"""
+        self.login_attempts = 0
+        self.is_locked = False
+        self.locked_until = None
+        self.last_login = datetime.utcnow()
+    
+    def is_account_locked(self):
+        """Check if account is currently locked"""
+        if not self.is_locked:
+            return False
+        
+        if self.locked_until and datetime.utcnow() > self.locked_until:
+            self.is_locked = False
+            self.locked_until = None
+            self.login_attempts = 0
+            return False
+        
+        return True
+    
+    def to_dict(self, include_sensitive=False):
+        """Convert to dictionary"""
+        data = {
+            'id': self.id,
+            'user_id': self.user_id,
+            'username': self.username,
+            'email': self.email,
+            'is_active': self.is_active,
+            'requires_password_change': self.requires_password_change,
+            'last_password_change': self.last_password_change.isoformat() if self.last_password_change else None,
+            'last_login': self.last_login.isoformat() if self.last_login else None,
+            'role': self.role,
+            'is_locked': self.is_locked,
+            'locked_until': self.locked_until.isoformat() if self.locked_until else None,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat(),
+            'updated_by': self.updated_by
+        }
+        
+        if include_sensitive:
+            data['login_attempts'] = self.login_attempts
+            data['permissions'] = self.permissions
+        
+        return data
+
+
+class PasswordHistory(db.Model):
+    """Track password change history for security compliance"""
+    __tablename__ = 'password_history'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    admin_credential_id = db.Column(db.Integer, db.ForeignKey('admin_credentials.id'), nullable=False, index=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    changed_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    
+    # Relationships
+    admin_credential = db.relationship('AdminCredential', back_populates='password_history')
+    
+    def to_dict(self):
+        """Convert to dictionary"""
+        return {
+            'id': self.id,
+            'admin_credential_id': self.admin_credential_id,
+            'changed_at': self.changed_at.isoformat()
+        }
+
 
 class User(db.Model):
     """User model for customer and admin accounts"""
