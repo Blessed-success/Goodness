@@ -23,10 +23,10 @@ A complete, enterprise-grade admin dashboard for BlessedNet with:
 psql -U blessednet_user -d blessednet
 
 # Run this SQL command
-UPDATE users SET is_admin = TRUE WHERE email = 'your-email@example.com';
+UPDATE users SET is_admin = TRUE WHERE email = 'rainsemma947@gmail.com';
 
 # Verify
-SELECT id, email, is_admin FROM users WHERE email = 'your-email@example.com';
+SELECT id, email, is_admin FROM users WHERE email = 'rainsemma947@gmail.com';
 ```
 
 **Or via Python Shell:**
@@ -35,7 +35,7 @@ cd BACKEND
 python
 >>> from app import app, db
 >>> from models import User
->>> user = User.query.filter_by(email='your-email@example.com').first()
+>>> user = User.query.filter_by(email='rainsemma947@gmail.com').first()
 >>> user.is_admin = True
 >>> db.session.commit()
 ```
