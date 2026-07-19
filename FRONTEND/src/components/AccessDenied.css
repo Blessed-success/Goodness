@@ -1,0 +1,127 @@
+/* AccessDenied.css */
+
+.access-denied-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  padding: 2rem;
+}
+
+.access-denied-card {
+  background: white;
+  border-radius: 12px;
+  padding: 3rem;
+  max-width: 500px;
+  width: 100%;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  text-align: center;
+}
+
+.icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+h1 {
+  color: #333;
+  margin: 1rem 0;
+  font-size: 2rem;
+}
+
+.message {
+  color: #666;
+  font-size: 1.05rem;
+  margin: 1.5rem 0;
+  line-height: 1.6;
+}
+
+.suggestions {
+  background: #f9f9f9;
+  padding: 1.5rem;
+  border-radius: 8px;
+  margin: 2rem 0;
+  text-align: left;
+}
+
+.suggestions h3 {
+  color: #333;
+  margin-top: 0;
+}
+
+.suggestions ul {
+  margin: 1rem 0;
+  padding-left: 1.5rem;
+}
+
+.suggestions li {
+  color: #666;
+  margin: 0.5rem 0;
+}
+
+.actions {
+  display: flex;
+  gap: 1rem;
+  margin: 2rem 0;
+  flex-direction: column;
+}
+
+.actions button {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-home {
+  background: #3498db;
+  color: white;
+}
+
+.btn-home:hover {
+  background: #2980b9;
+}
+
+.btn-change-location {
+  background: white;
+  color: #3498db;
+  border: 2px solid #3498db;
+}
+
+.btn-change-location:hover {
+  background: #ecf0f1;
+}
+
+.support {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #eee;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.support a {
+  color: #3498db;
+  text-decoration: none;
+}
+
+.support a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 600px) {
+  .access-denied-card {
+    padding: 1.5rem;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "blessednet-fullstack",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BlessedNet full-stack project automation",
+  "scripts": {
+    "setup": "cd BACKEND && python -m venv .venv && .venv\\Scripts\\python -m pip install --upgrade pip && .venv\\Scripts\\pip install -r requirements.txt && cd ..\\FRONTEND && npm install",
+    "start-backend": "cd BACKEND && .venv\\Scripts\\python app.py",
+    "start-frontend": "cd FRONTEND && npm start",
+    "start-all": "concurrently \"npm run start-backend\" \"npm run start-frontend\"",
+    "dev": "npm install && npm run setup && npm run start-all"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
