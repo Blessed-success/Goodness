@@ -7,7 +7,6 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { automationAPI } from '../api';
 import { FiEye, FiCheckCircle, FiSearch, FiSend } from 'react-icons/fi';
-import AdminLayout from '../components/AdminLayout';
 import Swal from 'sweetalert2';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
@@ -111,7 +110,7 @@ const AdminOrders = () => {
   const statusOptions = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
 
   return (
-    <AdminLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div>
@@ -363,7 +362,7 @@ const AdminOrders = () => {
           </div>
         </div>
       )}
-    </AdminLayout>
+    </>
   );
 };
 

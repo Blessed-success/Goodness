@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { FiEdit2, FiTrash2, FiPlus } from 'react-icons/fi';
-import AdminLayout from '../components/AdminLayout';
 import PlaceholderImage from '../components/ui/PlaceholderImage';
 import { adminCategoriesAPI, uploadAPI } from '../api';
 import Swal from 'sweetalert2';
@@ -107,7 +106,6 @@ const AdminCategories = () => {
   };
 
   return (
-    <AdminLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -226,7 +224,6 @@ const AdminCategories = () => {
           )}
         </div>
       </div>
-    </AdminLayout>
   );
 };
 

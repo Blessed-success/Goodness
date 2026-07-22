@@ -342,10 +342,12 @@ def get_competitor_dashboard():
         ).limit(5).all()
 
         # Get products with competitor undercutting
-        undercut_products = db.session.query(CompetitorPrice).filter(
+        undercut_products = db.session.query(CompetitorPrice).join(
+            Product, CompetitorPrice.product_id == Product.id
+        ).filter(
             CompetitorPrice.is_active == True,
             CompetitorPrice.is_available == True,
-            CompetitorPrice.competitor_price < CompetitorPrice.product.price
+            CompetitorPrice.competitor_price < Product.price
         ).limit(10).all()
 
         dashboard = {

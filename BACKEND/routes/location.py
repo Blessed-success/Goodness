@@ -1,5 +1,5 @@
 """
-Location Routes for BlessedNet Wholesale Hub
+Location Routes for Nexus Wholesale Hub
 Handles region and city management for location-based access control
 """
 

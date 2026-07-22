@@ -55,6 +55,13 @@ apiClient.interceptors.response.use(
         window.location.href = '/login';
       }
     }
+    // Any endpoint can 403 with this shape when the account has no active
+    // delivery location set (cart/orders/payment all gate on it) — surface a
+    // way to fix it from wherever the user happens to be, since the location
+    // prompt otherwise only appears right after login/register.
+    if (error.response?.status === 403 && error.response?.data?.error === 'Service not available in your location') {
+      window.dispatchEvent(new Event('location-required'));
+    }
     return Promise.reject(error);
   }
 );
@@ -66,6 +73,8 @@ export const authAPI = {
   getProfile: () => apiClient.get('/auth/profile'),
   updateProfile: (data) => apiClient.put('/auth/profile', data),
   changePassword: (data) => apiClient.post('/auth/change-password', data),
+  forgotPassword: (data) => apiClient.post('/auth/forgot-password', data),
+  resetPassword: (data) => apiClient.post('/auth/reset-password', data),
 };
 
 // Product API calls
@@ -74,6 +83,13 @@ export const productsAPI = {
   getById: (id) => apiClient.get(`/products/${id}`),
   getCategories: () => apiClient.get('/products/categories'),
   getPriceRange: () => apiClient.get('/products/price-range'),
+  searchByImage: (file) => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiClient.post('/products/search-by-image', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
   create: (data) => apiClient.post('/products', data),
   update: (id, data) => apiClient.put(`/products/${id}`, data),
   delete: (id) => apiClient.delete(`/products/${id}`),
@@ -90,6 +106,38 @@ export const adminCategoriesAPI = {
   create: (data) => apiClient.post('/admin/categories', data),
   update: (id, data) => apiClient.put(`/admin/categories/${id}`, data),
   delete: (id) => apiClient.delete(`/admin/categories/${id}`),
+};
+
+// Public hero banner (homepage hero section)
+export const heroBannerAPI = {
+  getActive: () => apiClient.get('/hero-banner'),
+};
+
+// Admin hero banner management (create/update/delete)
+export const adminHeroBannerAPI = {
+  getAll: () => apiClient.get('/admin/hero-banners'),
+  create: (data) => apiClient.post('/admin/hero-banners', data),
+  update: (id, data) => apiClient.put(`/admin/hero-banners/${id}`, data),
+  delete: (id) => apiClient.delete(`/admin/hero-banners/${id}`),
+};
+
+// Vendor (marketplace seller) API calls
+export const vendorAPI = {
+  getBySlug: (slug) => apiClient.get(`/vendors/${slug}`),
+  apply: (data) => apiClient.post('/vendors/apply', data),
+  getMe: () => apiClient.get('/vendors/me'),
+  updateMe: (data) => apiClient.put('/vendors/me', data),
+  getMyProducts: () => apiClient.get('/vendors/me/products'),
+  getMyOrders: () => apiClient.get('/vendors/me/orders'),
+  getMyEarnings: () => apiClient.get('/vendors/me/earnings'),
+};
+
+// Admin vendor management (approve/reject/commission, earnings ledger)
+export const adminVendorAPI = {
+  getAll: () => apiClient.get('/admin/vendors'),
+  update: (id, data) => apiClient.put(`/admin/vendors/${id}`, data),
+  getEarnings: () => apiClient.get('/admin/vendor-earnings'),
+  markEarningPaid: (id) => apiClient.put(`/admin/vendor-earnings/${id}/mark-paid`),
 };
 
 // Admin image upload (shared by products and categories via the 'type' field)
@@ -120,6 +168,27 @@ export const cartAPI = {
   updateItem: (itemId, data) => apiClient.put(`/cart/item/${itemId}`, data),
   removeItem: (itemId) => apiClient.delete(`/cart/item/${itemId}`),
   clearCart: () => apiClient.delete('/cart/clear'),
+};
+
+// Wishlist API calls
+export const wishlistAPI = {
+  getAll: () => apiClient.get('/wishlist'),
+  add: (productId) => apiClient.post('/wishlist', { product_id: productId }),
+  remove: (productId) => apiClient.delete(`/wishlist/${productId}`),
+};
+
+// Product review API calls
+export const reviewsAPI = {
+  getForProduct: (productId, params) => apiClient.get(`/reviews/product/${productId}`, { params }),
+  submit: (data) => apiClient.post('/reviews', data),
+  delete: (id) => apiClient.delete(`/reviews/${id}`),
+};
+
+// In-app notification API calls
+export const notificationsAPI = {
+  getAll: (params) => apiClient.get('/notifications', { params }),
+  markRead: (id) => apiClient.put(`/notifications/${id}/read`),
+  markAllRead: () => apiClient.put('/notifications/read-all'),
 };
 
 // Order API calls

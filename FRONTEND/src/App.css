@@ -12,7 +12,7 @@ body {
     'Oxygen', 'Ubuntu', 'Cantarell', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f9fafb;
+  background-color: #ffffff;
 }
 
 code {
@@ -33,7 +33,7 @@ main {
 /* Loading spinner */
 .spinner {
   border: 4px solid #f3f3f3;
-  border-top: 4px solid #3d5a80;
+  border-top: 4px solid #175036;
   border-radius: 50%;
   width: 40px;
   height: 40px;
@@ -56,7 +56,7 @@ a, button {
   width: 16px;
   height: 16px;
   border-radius: 9999px;
-  background: #3d5a80;
+  background: #175036;
   border: 2px solid #ffffff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   cursor: pointer;
@@ -66,7 +66,7 @@ a, button {
   width: 16px;
   height: 16px;
   border-radius: 9999px;
-  background: #3d5a80;
+  background: #175036;
   border: 2px solid #ffffff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   cursor: pointer;
@@ -89,4 +89,22 @@ a, button {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #555;
+}
+
+/* Offer ticker marquee (see components/home/OfferTicker.js) */
+.ticker-track {
+  animation: marquee 22s linear infinite;
+}
+
+.ticker-track:hover {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

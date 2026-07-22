@@ -4,14 +4,15 @@
  */
 
 import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   FiTarget, FiMenu, FiX, FiLogOut, FiHome, FiBox, FiShoppingCart, FiUsers,
-  FiUpload, FiMapPin, FiFileText, FiTrendingUp, FiMessageSquare, FiShoppingBag, FiGrid,
+  FiUpload, FiMapPin, FiFileText, FiTrendingUp, FiMessageSquare, FiGrid, FiFilm, FiUserCheck,
 } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
+import logoMark from '../assets/nexus-mark.png';
 
-const AdminLayout = ({ children }) => {
+const AdminLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -26,9 +27,11 @@ const AdminLayout = ({ children }) => {
 
   const coreItems = [
     { path: '/admin', label: 'Dashboard', icon: FiHome },
+    { path: '/admin/hero-banner', label: 'Hero Banner', icon: FiFilm },
     { path: '/admin/products', label: 'Products', icon: FiBox },
     { path: '/admin/categories', label: 'Categories', icon: FiGrid },
     { path: '/admin/orders', label: 'Orders', icon: FiShoppingCart },
+    { path: '/admin/vendors', label: 'Vendors', icon: FiUserCheck },
     { path: '/admin/users', label: 'Users', icon: FiUsers },
     { path: '/admin/locations', label: 'Locations', icon: FiMapPin },
   ];
@@ -63,10 +66,10 @@ const AdminLayout = ({ children }) => {
       <div className={`${sidebarOpen ? 'w-64' : 'w-20'} flex flex-col bg-gray-900 text-white transition-all duration-300`}>
         <div className="flex items-center justify-between p-4">
           <Link to="/" className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-600 text-white">
-              <FiShoppingBag size={16} />
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white p-1">
+              <img src={logoMark} alt="Nexus" className="h-full w-full object-contain" />
             </span>
-            {sidebarOpen && <span className="text-lg font-bold">BlessedNet</span>}
+            {sidebarOpen && <span className="text-lg font-bold">Nexus</span>}
           </Link>
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-400 hover:text-white">
             {sidebarOpen ? <FiX size={20} /> : <FiMenu size={20} />}
@@ -120,7 +123,9 @@ const AdminLayout = ({ children }) => {
         </div>
 
         <div className="flex-1 overflow-auto">
-          <div className="p-6">{children}</div>
+          <div className="p-6">
+            <Outlet />
+          </div>
         </div>
       </div>
     </div>

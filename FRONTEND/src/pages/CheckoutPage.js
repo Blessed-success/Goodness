@@ -145,8 +145,7 @@ const CheckoutPage = () => {
         paystackHandler.openIframe();
       } else if (paymentMethod === 'whatsapp') {
         const whatsappResponse = await paymentAPI.whatsappOrder({
-          product_id: cart.items[0].product.id,
-          quantity: cart.items[0].quantity,
+          order_id: order.id,
           customer_name: user.full_name,
           customer_phone: formData.shipping_phone,
         });

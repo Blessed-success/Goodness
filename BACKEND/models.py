@@ -1,5 +1,5 @@
 """
-Database Models for BlessedNet Wholesale Hub
+Database Models for Nexus Wholesale Hub
 Defines all tables for users, products, orders, and cart functionality
 ADDED: AdminCredential model for secure credential management
 """
@@ -158,10 +158,15 @@ class User(db.Model):
     region_id = db.Column(db.Integer, db.ForeignKey('regions.id'))
     city_id = db.Column(db.Integer, db.ForeignKey('cities.id'))
     is_admin = db.Column(db.Boolean, default=False)
+    is_vendor = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+    # Password reset — store only the hash of the emailed token, never the
+    # token itself, same reasoning as password_hash.
+    reset_token_hash = db.Column(db.String(255), nullable=True)
+    reset_token_expires = db.Column(db.DateTime, nullable=True)
+
     # Relationships
     region_obj = db.relationship('Region', foreign_keys=[region_id])
     city_obj = db.relationship('City', foreign_keys=[city_id])
@@ -193,6 +198,7 @@ class User(db.Model):
             'country': self.country,
             'postal_code': self.postal_code,
             'is_admin': self.is_admin,
+            'is_vendor': self.is_vendor,
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat()
         }
@@ -291,6 +297,7 @@ class Product(db.Model):
     discount_percent = db.Column(db.Float, default=0)
     image_url = db.Column(db.String(500))
     rating = db.Column(db.Float, default=5.0)
+    review_count = db.Column(db.Integer, default=0)
     stock_quantity = db.Column(db.Integer, default=0)
     sku = db.Column(db.String(100), unique=True)
     is_featured = db.Column(db.Boolean, default=False)
@@ -304,14 +311,21 @@ class Product(db.Model):
     profit_margin_percent = db.Column(db.Float, default=40)  # Markup percentage
     last_scraped_at = db.Column(db.DateTime)  # Last time price was checked
     is_price_monitored = db.Column(db.Boolean, default=False)  # Whether to auto-track prices
-    
+
+    # Marketplace: null means sold directly by Nexus (unchanged legacy behavior)
+    vendor_id = db.Column(db.Integer, db.ForeignKey('vendors.id'), nullable=True, index=True)
+
+    # '#rrggbb' average color of image_url, used for approximate search-by-photo matching
+    dominant_color = db.Column(db.String(7))
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Relationships
     cart_items = db.relationship('CartItem', back_populates='product', cascade='all, delete-orphan')
     order_items = db.relationship('OrderItem', back_populates='product')
     price_alerts = db.relationship('PriceAlert', back_populates='product', cascade='all, delete-orphan')
+    vendor = db.relationship('Vendor', foreign_keys=[vendor_id])
     
     @property
     def discounted_price(self):
@@ -330,11 +344,15 @@ class Product(db.Model):
             'discounted_price': self.discounted_price,
             'image_url': self.image_url,
             'rating': self.rating,
+            'review_count': self.review_count or 0,
             'sku': self.sku,
             'is_featured': self.is_featured,
             'is_trending': self.is_trending,
             'is_flash_sale': self.is_flash_sale,
             'flash_sale_end': self.flash_sale_end.isoformat() if self.flash_sale_end else None,
+            'vendor_id': self.vendor_id,
+            'vendor_name': self.vendor.store_name if self.vendor_id and self.vendor else None,
+            'vendor_slug': self.vendor.slug if self.vendor_id and self.vendor else None,
             'created_at': self.created_at.isoformat()
         }
         
@@ -879,5 +897,238 @@ class CompetitorAlert(db.Model):
             'recommendation': self.recommendation,
             'status': self.status,
             'admin_notes': self.admin_notes,
+            'created_at': self.created_at.isoformat(),
+        }
+
+
+class HeroBanner(db.Model):
+    """Fully admin-editable homepage hero banner: video, offers, timer, colors, scheduling"""
+    __tablename__ = 'hero_banners'
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Content
+    headline = db.Column(db.String(255))
+    subheading = db.Column(db.Text)
+    badge_text = db.Column(db.String(100))
+
+    # Media
+    video_url = db.Column(db.String(500))
+    poster_image_url = db.Column(db.String(500))
+
+    # Calls to action
+    cta_shop_text = db.Column(db.String(50), default='Shop Now')
+    cta_shop_link = db.Column(db.String(255), default='/products')
+    cta_deals_text = db.Column(db.String(50), default='View Deals')
+    cta_deals_link = db.Column(db.String(255), default='/products?flash_sale=true')
+    show_watch_video = db.Column(db.Boolean, default=True)
+
+    # Promotions
+    flash_sale_label = db.Column(db.String(100))
+    announcement_text = db.Column(db.String(255))
+    announcement_link = db.Column(db.String(255))
+    ticker_text = db.Column(db.Text)  # pipe ("|") separated scrolling offer lines
+
+    # Countdown
+    countdown_enabled = db.Column(db.Boolean, default=False)
+    countdown_end = db.Column(db.DateTime)
+    countdown_label = db.Column(db.String(100), default='Flash Sale Ends In')
+
+    # Colors
+    overlay_color = db.Column(db.String(20), default='#123d2a')
+    accent_color = db.Column(db.String(20), default='#82d06e')
+
+    # Scheduling
+    is_active = db.Column(db.Boolean, default=True)
+    starts_at = db.Column(db.DateTime)
+    ends_at = db.Column(db.DateTime)
+    display_order = db.Column(db.Integer, default=0)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        """Convert to dictionary"""
+        return {
+            'id': self.id,
+            'headline': self.headline,
+            'subheading': self.subheading,
+            'badge_text': self.badge_text,
+            'video_url': self.video_url,
+            'poster_image_url': self.poster_image_url,
+            'cta_shop_text': self.cta_shop_text,
+            'cta_shop_link': self.cta_shop_link,
+            'cta_deals_text': self.cta_deals_text,
+            'cta_deals_link': self.cta_deals_link,
+            'show_watch_video': self.show_watch_video,
+            'flash_sale_label': self.flash_sale_label,
+            'announcement_text': self.announcement_text,
+            'announcement_link': self.announcement_link,
+            'ticker_text': self.ticker_text,
+            'countdown_enabled': self.countdown_enabled,
+            'countdown_end': self.countdown_end.isoformat() if self.countdown_end else None,
+            'countdown_label': self.countdown_label,
+            'overlay_color': self.overlay_color,
+            'accent_color': self.accent_color,
+            'is_active': self.is_active,
+            'starts_at': self.starts_at.isoformat() if self.starts_at else None,
+            'ends_at': self.ends_at.isoformat() if self.ends_at else None,
+            'display_order': self.display_order,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat(),
+        }
+
+
+class WishlistItem(db.Model):
+    """A single product saved to a customer's wishlist"""
+    __tablename__ = 'wishlist_items'
+    __table_args__ = (db.UniqueConstraint('user_id', 'product_id', name='uq_wishlist_user_product'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User')
+    product = db.relationship('Product')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'product': self.product.to_dict() if self.product else None,
+            'created_at': self.created_at.isoformat(),
+        }
+
+
+class Review(db.Model):
+    """A customer's rating/review for a product"""
+    __tablename__ = 'reviews'
+    __table_args__ = (db.UniqueConstraint('user_id', 'product_id', name='uq_review_user_product'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    rating = db.Column(db.Integer, nullable=False)  # 1-5
+    title = db.Column(db.String(150))
+    body = db.Column(db.Text)
+    is_verified_purchase = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    product = db.relationship('Product')
+    user = db.relationship('User')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'product_id': self.product_id,
+            'user_id': self.user_id,
+            'username': self.user.username if self.user else None,
+            'rating': self.rating,
+            'title': self.title,
+            'body': self.body,
+            'is_verified_purchase': self.is_verified_purchase,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat(),
+        }
+
+
+class Notification(db.Model):
+    """An in-app notification for a customer (order updates, promos, etc.)"""
+    __tablename__ = 'notifications'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    type = db.Column(db.String(50), default='system')  # order_status, promo, vendor, system
+    title = db.Column(db.String(150), nullable=False)
+    message = db.Column(db.Text)
+    link = db.Column(db.String(255))
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'type': self.type,
+            'title': self.title,
+            'message': self.message,
+            'link': self.link,
+            'is_read': self.is_read,
+            'created_at': self.created_at.isoformat(),
+        }
+
+
+class Vendor(db.Model):
+    """A marketplace seller's storefront/profile"""
+    __tablename__ = 'vendors'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, unique=True)
+    store_name = db.Column(db.String(150), nullable=False)
+    slug = db.Column(db.String(160), unique=True, nullable=False, index=True)
+    logo_url = db.Column(db.String(500))
+    banner_url = db.Column(db.String(500))
+    description = db.Column(db.Text)
+    whatsapp_number = db.Column(db.String(20))
+    is_approved = db.Column(db.Boolean, default=False)
+    is_active = db.Column(db.Boolean, default=True)
+    commission_percent = db.Column(db.Float, default=10)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship('User', foreign_keys=[user_id])
+
+    def to_dict(self, include_contact=False):
+        data = {
+            'id': self.id,
+            'store_name': self.store_name,
+            'slug': self.slug,
+            'logo_url': self.logo_url,
+            'banner_url': self.banner_url,
+            'description': self.description,
+            'is_approved': self.is_approved,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat(),
+        }
+        if include_contact:
+            data['user_id'] = self.user_id
+            data['whatsapp_number'] = self.whatsapp_number
+            data['commission_percent'] = self.commission_percent
+            data['updated_at'] = self.updated_at.isoformat()
+        return data
+
+
+class VendorEarning(db.Model):
+    """A vendor's commission-ledger entry for one order-item sold.
+
+    Money still flows through the single platform Paystack account exactly
+    as before — this is a bookkeeping ledger, not an automated payout. Admin
+    reconciles/pays vendors outside the app and marks rows 'paid' here.
+    """
+    __tablename__ = 'vendor_earnings'
+
+    id = db.Column(db.Integer, primary_key=True)
+    vendor_id = db.Column(db.Integer, db.ForeignKey('vendors.id'), nullable=False, index=True)
+    order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
+    order_item_id = db.Column(db.Integer, db.ForeignKey('order_items.id'), nullable=False)
+    gross_amount = db.Column(db.Float, nullable=False)
+    commission_amount = db.Column(db.Float, nullable=False)
+    net_amount = db.Column(db.Float, nullable=False)
+    payout_status = db.Column(db.String(20), default='unpaid')  # unpaid, paid
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    vendor = db.relationship('Vendor', foreign_keys=[vendor_id])
+    order = db.relationship('Order', foreign_keys=[order_id])
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'vendor_id': self.vendor_id,
+            'order_id': self.order_id,
+            'order_item_id': self.order_item_id,
+            'gross_amount': self.gross_amount,
+            'commission_amount': self.commission_amount,
+            'net_amount': self.net_amount,
+            'payout_status': self.payout_status,
             'created_at': self.created_at.isoformat(),
         }

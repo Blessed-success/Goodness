@@ -78,3 +78,4 @@ media/
 # Sensitive info
 secrets.json
 credentials.json
+.claude

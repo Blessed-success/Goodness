@@ -1,5 +1,5 @@
 """
-Product Import Routes for BlessedNet Wholesale Hub
+Product Import Routes for Nexus Wholesale Hub
 Handles 1688 product import for dropshipping workflow
 """
 

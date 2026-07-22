@@ -1,4 +1,4 @@
-# BlessedNet Wholesale Hub - Full Stack eCommerce Application
+# Nexus Wholesale Hub - Full Stack eCommerce Application
 
 A complete, production-ready full-stack eCommerce platform built with **React**, **Flask**, **PostgreSQL**, and **Paystack** payment integration.
 
@@ -27,6 +27,7 @@ A complete, production-ready full-stack eCommerce platform built with **React**,
 - [1688 Import Guide](./1688_IMPORT_GUIDE.md) - Dropshipping product import
 - [Import API Reference](./IMPORT_TECHNICAL_DOCS.md) - Technical import documentation
 - [Main API Documentation](./API_DOCUMENTATION.md) - Complete API reference
+- [Marketplace Upgrade Guide](./MARKETPLACE_UPGRADE_GUIDE.md) - Vendors, wishlist, reviews, notifications, image search, recommendations
 
 ---
 
@@ -44,6 +45,12 @@ A complete, production-ready full-stack eCommerce platform built with **React**,
 - ✅ Real-time cart updates
 - ✅ Flash sale countdown timer
 - ✅ Trending products section
+- ✅ Wishlist, product comparison, and recently-viewed
+- ✅ Customer reviews and ratings
+- ✅ Vendor storefronts and vendor dashboard
+- ✅ In-app notifications (order status updates)
+- ✅ Heuristic personalized recommendations
+- ✅ Per-page SEO meta tags
 
 ### Backend (Flask)
 - ✅ RESTful API with proper error handling
@@ -64,6 +71,10 @@ A complete, production-ready full-stack eCommerce platform built with **React**,
 - ✅ Product image upload functionality
 - ✅ 1688 product import system (dropshipping)
 - ✅ Business analytics and reporting
+- ✅ Multi-vendor marketplace (apply, admin-approve, vendor product CRUD, commission earnings ledger)
+- ✅ Wishlist, reviews, and notifications APIs
+- ✅ Approximate image-search (color-similarity matching, no external AI vision API)
+- ✅ Sitemap.xml generation for SEO
 
 ### Database (PostgreSQL)
 - ✅ Users table with authentication
@@ -115,13 +126,13 @@ pip install -r requirements.txt
 
 **Create PostgreSQL database:**
 ```sql
-CREATE DATABASE blessednet;
-CREATE USER blessednet_user WITH PASSWORD 'your_secure_password';
-ALTER ROLE blessednet_user SET client_encoding TO 'utf8';
-ALTER ROLE blessednet_user SET default_transaction_isolation TO 'read committed';
-ALTER ROLE blessednet_user SET default_transaction_deferrable TO on;
-ALTER ROLE blessednet_user SET default_transaction_isolation TO 'read committed';
-GRANT ALL PRIVILEGES ON DATABASE blessednet TO blessednet_user;
+CREATE DATABASE nexus;
+CREATE USER nexus_user WITH PASSWORD 'your_secure_password';
+ALTER ROLE nexus_user SET client_encoding TO 'utf8';
+ALTER ROLE nexus_user SET default_transaction_isolation TO 'read committed';
+ALTER ROLE nexus_user SET default_transaction_deferrable TO on;
+ALTER ROLE nexus_user SET default_transaction_isolation TO 'read committed';
+GRANT ALL PRIVILEGES ON DATABASE nexus TO nexus_user;
 ```
 
 #### 2d. Configure Environment Variables
@@ -129,7 +140,7 @@ Edit `.env` file:
 
 ```env
 # Database Configuration
-DATABASE_URL=postgresql://blessednet_user:your_secure_password@localhost:5432/blessednet
+DATABASE_URL=postgresql://nexus_user:your_secure_password@localhost:5432/nexus
 
 # JWT Configuration
 JWT_SECRET_KEY=your-super-secret-key-change-this-in-production
@@ -149,7 +160,7 @@ SECRET_KEY=your-app-secret-key-change-this
 CORS_ORIGINS=http://localhost:3000,http://localhost:3001
 
 # Admin Configuration
-ADMIN_EMAIL=admin@blessednet.com
+ADMIN_EMAIL=admin@nexus.com
 ADMIN_PASSWORD=change_this_password
 ```
 
@@ -199,12 +210,37 @@ App will open at `http://localhost:3000`
 - `POST /api/auth/change-password` - Change password
 
 ### Products
-- `GET /api/products` - Get all products
+- `GET /api/products` - Get all products (filters: category, search, ids, vendor_id, price/rating range, sort)
 - `GET /api/products/<id>` - Get single product
 - `GET /api/products/categories` - Get all categories
-- `POST /api/products` - Create product (admin)
-- `PUT /api/products/<id>` - Update product (admin)
-- `DELETE /api/products/<id>` - Delete product (admin)
+- `GET /api/products/price-range` - Get catalog min/max price
+- `POST /api/products/search-by-image` - Approximate visual search (color-similarity matching)
+- `POST /api/products` - Create product (admin or approved vendor, scoped to their own store)
+- `PUT /api/products/<id>` - Update product (admin or owning vendor)
+- `DELETE /api/products/<id>` - Delete product (admin or owning vendor)
+
+### Wishlist
+- `GET /api/wishlist` - Get current user's wishlist
+- `POST /api/wishlist` - Add a product to the wishlist
+- `DELETE /api/wishlist/<product_id>` - Remove a product from the wishlist
+
+### Reviews
+- `GET /api/reviews/product/<product_id>` - List reviews + rating breakdown for a product
+- `POST /api/reviews` - Submit or update your review for a product
+- `DELETE /api/reviews/<id>` - Delete a review (owner or admin)
+
+### Notifications
+- `GET /api/notifications` - List current user's notifications + unread count
+- `PUT /api/notifications/<id>/read` - Mark one notification read
+- `PUT /api/notifications/read-all` - Mark all notifications read
+
+### Vendors (Marketplace)
+- `POST /api/vendors/apply` - Apply to become a seller
+- `GET /api/vendors/<slug>` - Public storefront profile
+- `GET /api/vendors/me` / `PUT /api/vendors/me` - Manage your own vendor profile
+- `GET /api/vendors/me/products` / `GET /api/vendors/me/orders` / `GET /api/vendors/me/earnings` - Your store's data
+- `GET /api/admin/vendors` / `PUT /api/admin/vendors/<id>` - Admin: list/approve/reject/set commission
+- `GET /api/admin/vendor-earnings` / `PUT /api/admin/vendor-earnings/<id>/mark-paid` - Admin: commission ledger reconciliation
 
 ### Cart
 - `GET /api/cart` - Get user's cart
@@ -478,8 +514,8 @@ kill -9 <PID>
 - Ensure database exists
 
 **Migration errors:**
-- Delete `blessednet` database
-- Run `CREATE DATABASE blessednet;`
+- Delete `nexus` database
+- Run `CREATE DATABASE nexus;`
 - Restart backend
 
 ### Frontend Issues
@@ -510,21 +546,22 @@ This project is provided as-is for educational and commercial use.
 
 ## ✨ Features Roadmap
 
-- [ ] User reviews and ratings
-- [ ] Wishlist functionality
+- [x] User reviews and ratings
+- [x] Wishlist functionality
+- [x] Multi-vendor support
+- [x] Heuristic product recommendations
 - [ ] Email notifications
 - [ ] SMS notifications
 - [ ] Advanced analytics
 - [ ] Inventory management
-- [ ] Multi-vendor support
 - [ ] Loyalty points system
 - [ ] Mobile app (React Native)
-- [ ] AI-powered recommendations
+- [ ] Real AI-vision-powered image search (current version uses color-similarity matching, no external API)
 
 ---
 
 **Version:** 1.0.0
 **Last Updated:** 2024
-**Author:** BlessedNet Development Team
+**Author:** Nexus Development Team
 
 Happy selling! 🎉

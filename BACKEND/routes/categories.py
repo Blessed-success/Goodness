@@ -1,5 +1,5 @@
 """
-Category Routes for BlessedNet Wholesale Hub
+Category Routes for Nexus Wholesale Hub
 Public endpoint for category listing with display images.
 """
 

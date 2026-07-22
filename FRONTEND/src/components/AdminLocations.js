@@ -209,7 +209,7 @@ const AdminLocations = () => {
       <div className="admin-locations-header">
         <h2>🌍 Location-Based Access Control</h2>
         <p className="description">
-          Control which regions and cities in Ghana can access and purchase from BlessedNet
+          Control which regions and cities in Ghana can access and purchase from Nexus
         </p>
       </div>
 

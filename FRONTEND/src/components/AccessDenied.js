@@ -47,7 +47,7 @@ const AccessDenied = ({ reason, title = "Service Not Available", showHomeButton 
         </div>
 
         <p className="support">
-          Need help? <a href="mailto:support@blessednet.com">Contact us</a>
+          Need help? <a href="mailto:support@nexus.com">Contact us</a>
         </p>
       </div>
     </div>

@@ -220,7 +220,7 @@ const ProductImportPage = () => {
 
         {/* Single Product Import */}
         {activeTab === 'single' && (
-          <SingleProductTab 
+          <SingleProductTab
             productUrl={productUrl}
             setProductUrl={setProductUrl}
             profitMargin={profitMargin}
@@ -229,6 +229,14 @@ const ProductImportPage = () => {
             previewData={previewData}
             onPreview={handlePreviewProduct}
             onImport={handleImportProduct}
+            previewError={error}
+            onManualImported={() => {
+              setSuccess('Product imported successfully! ✅');
+              setPreviewData(null);
+              setProductUrl('');
+              setError('');
+              setTimeout(() => setSuccess(''), 3000);
+            }}
           />
         )}
 
@@ -261,7 +269,49 @@ const ProductImportPage = () => {
 };
 
 // Single Product Component
-const SingleProductTab = ({ productUrl, setProductUrl, profitMargin, setProfitMargin, loading, previewData, onPreview, onImport }) => {
+const SingleProductTab = ({ productUrl, setProductUrl, profitMargin, setProfitMargin, loading, previewData, onPreview, onImport, previewError, onManualImported }) => {
+  const [manualMode, setManualMode] = useState(false);
+  const [manualData, setManualData] = useState({ title: '', price_ghs: '', category: 'Wholesale', images: '', stock_quantity: 10 });
+  const [manualLoading, setManualLoading] = useState(false);
+  const [manualError, setManualError] = useState('');
+
+  const handleManualImport = async () => {
+    setManualError('');
+
+    if (!manualData.title.trim() || !manualData.price_ghs) {
+      setManualError('Title and price are required');
+      return;
+    }
+
+    try {
+      setManualLoading(true);
+      const token = localStorage.getItem('access_token');
+      const images = manualData.images.split('\n').map((s) => s.trim()).filter(Boolean);
+
+      await axios.post(
+        `${API_BASE_URL}/import/product`,
+        {
+          product_url: productUrl,
+          product_title: manualData.title.trim(),
+          price_ghs: parseFloat(manualData.price_ghs),
+          category: manualData.category.trim() || 'Wholesale',
+          images,
+          stock_quantity: parseInt(manualData.stock_quantity) || 10,
+          is_featured: false
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setManualMode(false);
+      setManualData({ title: '', price_ghs: '', category: 'Wholesale', images: '', stock_quantity: 10 });
+      onManualImported?.();
+    } catch (err) {
+      setManualError(err.response?.data?.error || 'Manual import failed');
+    } finally {
+      setManualLoading(false);
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       {/* Input Form */}
@@ -315,6 +365,93 @@ const SingleProductTab = ({ productUrl, setProductUrl, profitMargin, setProfitMa
             </button>
           </div>
         </form>
+
+        {/* Manual fallback — 1688 pages are JS-rendered, so automatic
+            extraction fails on most real product URLs. Since /import/product
+            only needs the final values (not the scrape), typing them in here
+            always works regardless of whether the page could be read. */}
+        <div className="bg-white rounded-lg shadow p-6 mt-6">
+          <button
+            type="button"
+            onClick={() => setManualMode((m) => !m)}
+            className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+          >
+            {manualMode ? '▾ Hide manual entry' : "▸ Auto-read failed or looks wrong? Enter product details manually"}
+          </button>
+
+          {previewError && !manualMode && (
+            <p className="text-xs text-red-600 mt-2">{previewError} — you can still import by entering the details yourself.</p>
+          )}
+
+          {manualMode && (
+            <div className="space-y-4 mt-4">
+              {manualError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{manualError}</div>
+              )}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Product Title</label>
+                <input
+                  type="text"
+                  value={manualData.title}
+                  onChange={(e) => setManualData({ ...manualData, title: e.target.value })}
+                  placeholder="Copy the title from the 1688 page"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Final Price (GHS)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={manualData.price_ghs}
+                    onChange={(e) => setManualData({ ...manualData, price_ghs: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Use the Calculator tab to work this out from a RMB price</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Stock Quantity</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={manualData.stock_quantity}
+                    onChange={(e) => setManualData({ ...manualData, stock_quantity: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2">Category</label>
+                <input
+                  type="text"
+                  value={manualData.category}
+                  onChange={(e) => setManualData({ ...manualData, category: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2">Image URLs (one per line)</label>
+                <textarea
+                  value={manualData.images}
+                  onChange={(e) => setManualData({ ...manualData, images: e.target.value })}
+                  rows="3"
+                  placeholder="https://...jpg"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 font-mono text-sm"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleManualImport}
+                disabled={manualLoading}
+                className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition font-semibold disabled:opacity-50"
+              >
+                {manualLoading ? '⏳ Importing...' : '✨ Import to Store'}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Preview Section */}
@@ -692,6 +829,32 @@ const CSVImportTab = ({ apiUrl, onSuccess }) => {
 
 // Import Jobs Component
 const ImportJobsTab = ({ jobs, apiUrl }) => {
+  const [expandedJobId, setExpandedJobId] = useState(null);
+  const [taskDetails, setTaskDetails] = useState({});
+  const [loadingTaskId, setLoadingTaskId] = useState(null);
+
+  const toggleExpand = async (job) => {
+    if (expandedJobId === job.job_id) {
+      setExpandedJobId(null);
+      return;
+    }
+    setExpandedJobId(job.job_id);
+    if (taskDetails[job.job_id]) return;
+
+    try {
+      setLoadingTaskId(job.job_id);
+      const token = localStorage.getItem('access_token');
+      const response = await axios.get(`${apiUrl}/import/jobs/${job.job_id}?include_tasks=true`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setTaskDetails((prev) => ({ ...prev, [job.job_id]: response.data.data.tasks || [] }));
+    } catch (err) {
+      console.error('Failed to load task details:', err);
+    } finally {
+      setLoadingTaskId(null);
+    }
+  };
+
   const getStatusColor = (status) => {
     switch(status) {
       case 'completed': return 'text-green-700 bg-green-50';
@@ -773,6 +936,32 @@ const ImportJobsTab = ({ jobs, apiUrl }) => {
           {job.completed_at && (
             <div className="mt-4 pt-4 border-t text-sm text-gray-500">
               <p>Completed: {new Date(job.completed_at).toLocaleString()}</p>
+            </div>
+          )}
+
+          {job.failed_count > 0 && (
+            <button
+              onClick={() => toggleExpand(job)}
+              className="mt-4 text-sm font-semibold text-blue-600 hover:text-blue-700"
+            >
+              {expandedJobId === job.job_id ? '▾ Hide details' : `▸ Why did ${job.failed_count} fail?`}
+            </button>
+          )}
+
+          {expandedJobId === job.job_id && (
+            <div className="mt-3 space-y-2">
+              {loadingTaskId === job.job_id ? (
+                <p className="text-sm text-gray-500">Loading…</p>
+              ) : (
+                (taskDetails[job.job_id] || []).map((task) => (
+                  <div key={task.id} className="p-3 rounded bg-gray-50 text-sm">
+                    <p className="font-mono text-xs text-gray-500 break-all">{task.product_url}</p>
+                    <p className={task.status === 'failed' ? 'text-red-700' : 'text-green-700'}>
+                      {task.status === 'failed' ? `❌ ${task.error_message || 'Failed'}` : `✅ ${task.translated_title || task.original_title || 'Imported'}`}
+                    </p>
+                  </div>
+                ))
+              )}
             </div>
           )}
         </div>

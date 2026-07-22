@@ -1,5 +1,5 @@
 """
-Order Routes for BlessedNet Wholesale Hub
+Order Routes for Nexus Wholesale Hub
 Handles order creation, management, and tracking
 """
 
@@ -10,7 +10,10 @@ from models import db, Order, OrderItem, Cart, CartItem, Product, User, Region
 from datetime import datetime
 from utils.security import safe_error_response
 from utils.location_validation import is_user_location_active
+from routes.notifications import create_notification
+from routes.whatsapp_bot import send_message
 import uuid
+import os
 
 orders_bp = Blueprint('orders', __name__, url_prefix='/api/orders')
 
@@ -313,14 +316,37 @@ def update_order_status(order_id):
         
         if 'notes' in data:
             order.notes = data['notes'].strip() if isinstance(data['notes'], str) else order.notes
-        
+
+        try:
+            create_notification(
+                user_id=order.user_id,
+                title=f'Order #{order.order_number} is now {status}',
+                message=f'Your order #{order.order_number} status changed to "{status}".',
+                link=f'/orders/{order.id}',
+                type='order_status',
+            )
+        except Exception:
+            current_app.logger.exception('Failed to create order-status notification')
+
+        if order.shipping_phone:
+            try:
+                sent = send_message(
+                    order.shipping_phone,
+                    f'Hi! Your Nexus order #{order.order_number} is now "{status}". '
+                    f'Track it here: {os.getenv("FRONTEND_URL", "")}/orders/{order.id}'
+                )
+                if sent:
+                    order.whatsapp_notification_sent = True
+            except Exception:
+                current_app.logger.exception('Failed to send WhatsApp order-status message')
+
         db.session.commit()
-        
+
         return jsonify({
             'message': 'Order status updated successfully',
             'data': order.to_dict()
         }), 200
-    
+
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception(e)

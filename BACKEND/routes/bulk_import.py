@@ -1,5 +1,5 @@
 """
-Advanced Bulk Import Routes for BlessedNet Wholesale Hub
+Advanced Bulk Import Routes for Nexus Wholesale Hub
 Handles multi-URL imports, CSV uploads, and background job processing
 """
 

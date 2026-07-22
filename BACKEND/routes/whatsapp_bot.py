@@ -1,5 +1,5 @@
 """
-WhatsApp Bot Routes for BlessedNet Wholesale Hub
+WhatsApp Bot Routes for Nexus Wholesale Hub
 Handles incoming WhatsApp messages and auto-replies with product info
 """
 
@@ -17,7 +17,7 @@ WHATSAPP_VERIFY_TOKEN = os.getenv('WHATSAPP_VERIFY_TOKEN', 'your_verify_token')
 WHATSAPP_API_TOKEN = os.getenv('WHATSAPP_API_TOKEN', 'your_api_token')
 WHATSAPP_BUSINESS_ACCOUNT_ID = os.getenv('WHATSAPP_BUSINESS_ACCOUNT_ID', 'your_account_id')
 WHATSAPP_PHONE_NUMBER_ID = os.getenv('WHATSAPP_PHONE_NUMBER_ID', 'your_phone_number_id')
-WHATSAPP_API_URL = 'https://graph.instagram.com/v18.0'
+WHATSAPP_API_URL = 'https://graph.facebook.com/v18.0'
 
 
 @whatsapp_bp.route('/webhook', methods=['GET'])
@@ -160,7 +160,7 @@ def send_main_menu(sender_id):
     Send main menu with options
     """
     message = """
-🎉 *Welcome to BlessedNet Wholesale Hub!*
+🎉 *Welcome to Nexus Wholesale Hub!*
 
 What can we help you with?
 
@@ -170,7 +170,7 @@ What can we help you with?
 4️⃣ *📞 Contact Us* - Type "contact us"
 5️⃣ *❓ Help & FAQ* - Type "help"
 
-📱 *Quick Shop*: Visit our store at https://blessednet.local
+📱 *Quick Shop*: Visit our store at https://nexus.local
 
 ⏰ *Business Hours*: Mon-Fri 8AM-6PM GMT (Ghana Time)
     """

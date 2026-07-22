@@ -4,30 +4,30 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Palette: https://coolors.co/palette/3d5a80-98c1d9-e0fbfc-ee6c4d-293241
+        // Luxury green marketplace palette: deep green (brand/dark surfaces) + light green (CTAs)
         primary: {
-          50: '#f2f7fa',
-          100: '#e0fbfc',
-          200: '#c3e4ef',
-          300: '#98c1d9',
-          400: '#6f9ebd',
-          500: '#527a9e',
-          600: '#3d5a80',
-          700: '#334a68',
-          800: '#293241',
-          900: '#1c222e',
-          DEFAULT: '#3d5a80',
+          50: '#eef6f1',
+          100: '#d6eadd',
+          200: '#aad4bc',
+          300: '#78b896',
+          400: '#4e9c74',
+          500: '#2f7f57',
+          600: '#1f6644',
+          700: '#175036',
+          800: '#123d2a',
+          900: '#0c2a1d',
+          DEFAULT: '#175036',
         },
         accent: {
-          50: '#fef3ef',
-          100: '#fde3d8',
-          200: '#fac2ad',
-          300: '#f5977a',
-          400: '#ee6c4d',
-          500: '#e14f2c',
-          600: '#c43c1d',
-          700: '#9c3018',
-          DEFAULT: '#ee6c4d',
+          50: '#f3fbf0',
+          100: '#e3f6db',
+          200: '#c6edb9',
+          300: '#a3e092',
+          400: '#82d06e',
+          500: '#63b84f',
+          600: '#4b9a3a',
+          700: '#3a7a2d',
+          DEFAULT: '#82d06e',
         },
       },
       fontFamily: {
@@ -39,6 +39,35 @@ module.exports = {
       },
       borderRadius: {
         xl: '0.875rem',
+      },
+      keyframes: {
+        marquee: {
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(-50%)' },
+        },
+        'fade-in-up': {
+          '0%': { opacity: '0', transform: 'translateY(16px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0) scale(1)' },
+          '50%': { transform: 'translateY(-14px) scale(1.03)' },
+        },
+        'pulse-glow': {
+          '0%, 100%': { boxShadow: '0 0 0 0 rgba(130, 208, 110, 0.55)' },
+          '50%': { boxShadow: '0 0 0 8px rgba(130, 208, 110, 0)' },
+        },
+        'ken-burns': {
+          '0%': { transform: 'scale(1)' },
+          '100%': { transform: 'scale(1.12)' },
+        },
+      },
+      animation: {
+        marquee: 'marquee 22s linear infinite',
+        'fade-in-up': 'fade-in-up 0.7s ease-out forwards',
+        float: 'float 6s ease-in-out infinite',
+        'pulse-glow': 'pulse-glow 2s ease-out infinite',
+        'ken-burns': 'ken-burns 18s ease-out infinite alternate',
       },
     },
   },

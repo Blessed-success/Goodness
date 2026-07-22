@@ -184,7 +184,11 @@ const LocationSelector = ({ onLocationSelect, initialRegionId, initialCityId, sh
           </button>
         </form>
 
-        {showModal && (
+        {/* Only dismissible when the user already has a location on file (i.e.
+            this is "change my location", not the mandatory first-time gate) —
+            closing it with no location set leaves the account unable to shop
+            with no way back in, since every order needs a delivery region. */}
+        {showModal && initialRegionId && initialCityId && (
           <button
             type="button"
             onClick={() => setIsVisible(false)}

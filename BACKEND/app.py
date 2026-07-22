@@ -1,12 +1,13 @@
 """
-BlessedNet Wholesale Hub - Flask Backend
+Nexus Wholesale Hub - Flask Backend
 Full-stack eCommerce application with JWT authentication, Paystack integration, and PostgreSQL
 FIXED: Corrected admin user creation, improved error handling, optimized token expiry
 """
 
 import os
+import sys
 from datetime import timedelta
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_limiter import Limiter
@@ -15,6 +16,12 @@ from dotenv import load_dotenv
 from database import db
 from sqlalchemy.exc import IntegrityError
 
+# Ensure emoji/unicode in console prints (e.g. startup log messages) don't crash
+# on Windows terminals whose default codepage (cp1252) can't encode them.
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
+
 # Load environment variables
 load_dotenv()
 
@@ -22,7 +29,7 @@ load_dotenv()
 app = Flask(__name__)
 
 # Configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///blessednet.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///nexus.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'change-this-secret-key')
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'change-this-secret-key')
@@ -48,7 +55,7 @@ CORS(app, resources={
 })
 
 # Import database models
-from models import User, Product, Category, Cart, Order, CartItem, OrderItem, Region, City
+from models import User, Product, Category, Cart, Order, CartItem, OrderItem, Region, City, Vendor
 
 # Import and register blueprints (routes) - moved here to avoid circular imports
 from routes.auth import auth_bp
@@ -65,6 +72,11 @@ from routes.admin import admin_bp
 from routes.location import location_bp
 from routes.whatsapp_bot import whatsapp_bp
 from routes.competitor_tracker import competitor_bp
+from routes.hero_banner import hero_bp
+from routes.wishlist import wishlist_bp
+from routes.reviews import reviews_bp
+from routes.notifications import notifications_bp
+from routes.vendors import vendors_bp
 from utils.scheduler import SchedulerManager
 
 # Serve uploaded images (product/category photos saved by the admin upload
@@ -91,7 +103,7 @@ def health():
     """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
-        'message': 'BlessedNet Wholesale Hub API is running'
+        'message': 'Nexus Wholesale Hub API is running'
     }), 200
 
 # Welcome endpoint
@@ -99,7 +111,7 @@ def health():
 def home():
     """Welcome endpoint"""
     return jsonify({
-        'message': 'Welcome to BlessedNet Wholesale Hub API',
+        'message': 'Welcome to Nexus Wholesale Hub API',
         'version': '1.0.0',
         'endpoints': {
             'auth': '/api/auth',
@@ -110,6 +122,31 @@ def home():
             'import': '/api/import'
         }
     }), 200
+
+
+@app.route('/sitemap.xml', methods=['GET'])
+def sitemap():
+    """Basic XML sitemap for search engines: static pages, categories, vendor stores, products."""
+    from urllib.parse import quote
+
+    site_url = os.getenv('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
+    urls = [f'{site_url}/', f'{site_url}/products']
+
+    categories = db.session.query(Product.category).distinct().all()
+    urls += [f'{site_url}/products?category={quote(c[0])}' for c in categories if c[0]]
+
+    vendors = Vendor.query.filter_by(is_approved=True, is_active=True).all()
+    urls += [f'{site_url}/store/{quote(v.slug)}' for v in vendors]
+
+    products = Product.query.order_by(Product.created_at.desc()).limit(1000).all()
+    urls += [f'{site_url}/products?search={quote(p.name)}' for p in products]
+
+    xml_parts = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for url in urls:
+        xml_parts.append(f'<url><loc>{url}</loc></url>')
+    xml_parts.append('</urlset>')
+
+    return Response('\n'.join(xml_parts), mimetype='application/xml')
 
 @app.errorhandler(404)
 def not_found(error):
@@ -135,6 +172,11 @@ app.register_blueprint(admin_bp)
 app.register_blueprint(location_bp)
 app.register_blueprint(whatsapp_bp)
 app.register_blueprint(competitor_bp)
+app.register_blueprint(hero_bp)
+app.register_blueprint(wishlist_bp)
+app.register_blueprint(reviews_bp)
+app.register_blueprint(notifications_bp)
+app.register_blueprint(vendors_bp)
 
 # Database table creation and seed data. This runs at import time (not just
 # under `python app.py`) so it also executes under gunicorn in production,

@@ -4,22 +4,28 @@
  */
 
 import React, { useState } from 'react';
-import { FiShoppingCart, FiHeart, FiMessageCircle, FiStar } from 'react-icons/fi';
+import { Link } from 'react-router-dom';
+import { FiShoppingCart, FiHeart, FiMessageCircle, FiStar, FiEye, FiRepeat } from 'react-icons/fi';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { useWishlist } from '../context/WishlistContext';
+import { useCompare } from '../context/CompareContext';
 import { paymentAPI } from '../api';
 import Card from './ui/Card';
 import Badge from './ui/Badge';
 import Button from './ui/Button';
 import PlaceholderImage from './ui/PlaceholderImage';
 import { toast } from './ui/Toast';
+import QuickViewModal from './QuickViewModal';
 
 const ProductCard = ({ product, isBestDeal = false }) => {
   const { addItem } = useCart();
-  const { user } = useAuth();
-  const [liked, setLiked] = useState(false);
+  const { user, isAuthenticated } = useAuth();
+  const { isWishlisted, toggleItem } = useWishlist();
+  const { isComparing, toggleCompare, isFull } = useCompare();
   const [loading, setLoading] = useState(false);
   const [quantity, setQuantity] = useState(1);
+  const [quickViewOpen, setQuickViewOpen] = useState(false);
 
   const handleAddToCart = async () => {
     try {
@@ -53,11 +59,33 @@ const ProductCard = ({ product, isBestDeal = false }) => {
     }
   };
 
+  const handleToggleWishlist = async () => {
+    if (!isAuthenticated) {
+      toast.error('Please log in to save items to your wishlist');
+      return;
+    }
+    try {
+      await toggleItem(product.id);
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const handleToggleCompare = () => {
+    if (!isComparing(product.id) && isFull) {
+      toast.error('You can compare up to 4 products at a time');
+      return;
+    }
+    toggleCompare(product.id);
+  };
+
+  const liked = isWishlisted(product.id);
+  const comparing = isComparing(product.id);
   const discountedPrice = product.discounted_price || product.price;
   const savings = ((product.price - discountedPrice) / product.price * 100).toFixed(0);
 
   return (
-    <Card hoverable padded={false} className="overflow-hidden">
+    <Card hoverable padded={false} className="group overflow-hidden">
       {/* Product Image */}
       <div className="relative h-48 overflow-hidden bg-gray-100">
         <PlaceholderImage
@@ -74,12 +102,32 @@ const ProductCard = ({ product, isBestDeal = false }) => {
           {product.discount_percent > 0 && <Badge variant="success">-{product.discount_percent}%</Badge>}
         </div>
 
-        {/* Like Button */}
+        {/* Wishlist + Compare Buttons */}
+        <div className="absolute right-3 top-3 flex flex-col gap-1.5">
+          <button
+            onClick={handleToggleWishlist}
+            title="Save to wishlist"
+            className="rounded-full bg-white/90 p-2 shadow-sm hover:bg-white transition-colors"
+          >
+            <FiHeart size={16} fill={liked ? '#ef4444' : 'none'} color={liked ? '#ef4444' : '#6b7280'} />
+          </button>
+          <button
+            onClick={handleToggleCompare}
+            title="Add to compare"
+            className={`rounded-full p-2 shadow-sm transition-colors ${
+              comparing ? 'bg-primary-600 text-white' : 'bg-white/90 text-gray-600 hover:bg-white'
+            }`}
+          >
+            <FiRepeat size={16} />
+          </button>
+        </div>
+
+        {/* Quick View */}
         <button
-          onClick={() => setLiked(!liked)}
-          className="absolute right-3 top-3 rounded-full bg-white/90 p-2 shadow-sm hover:bg-white transition-colors"
+          onClick={() => setQuickViewOpen(true)}
+          className="absolute inset-x-3 bottom-3 flex translate-y-2 items-center justify-center gap-1.5 rounded-lg bg-white/95 py-2 text-xs font-semibold text-primary-800 opacity-0 shadow-sm transition-all duration-200 hover:bg-white group-hover:translate-y-0 group-hover:opacity-100"
         >
-          <FiHeart size={16} fill={liked ? '#ef4444' : 'none'} color={liked ? '#ef4444' : '#6b7280'} />
+          <FiEye size={14} /> Quick View
         </button>
       </div>
 
@@ -88,6 +136,16 @@ const ProductCard = ({ product, isBestDeal = false }) => {
         <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
           {product.category}
         </p>
+
+        {product.vendor_id && (
+          <Link
+            to={`/store/${product.vendor_slug}`}
+            onClick={(e) => e.stopPropagation()}
+            className="mb-1.5 block text-xs font-medium text-primary-600 hover:underline"
+          >
+            Sold by {product.vendor_name}
+          </Link>
+        )}
 
         <h3 className="mb-2 line-clamp-2 font-semibold text-gray-900 hover:text-primary-600">
           {product.name}
@@ -172,6 +230,10 @@ const ProductCard = ({ product, isBestDeal = false }) => {
           </Button>
         </div>
       </div>
+
+      {quickViewOpen && (
+        <QuickViewModal product={product} onClose={() => setQuickViewOpen(false)} />
+      )}
     </Card>
   );
 };

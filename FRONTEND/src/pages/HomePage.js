@@ -1,27 +1,27 @@
 /**
  * Homepage
- * Main landing page with featured products, flash sales, and trending items
+ * Main landing page with a full-width hero, featured products, flash
+ * sales, and trending items.
  */
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import {
-  FiArrowRight, FiShield, FiTruck, FiMessageCircle, FiCreditCard, FiMapPin,
-  FiSearch, FiCheckCircle,
+  FiShield, FiTruck, FiMessageCircle, FiCreditCard, FiSearch, FiCheckCircle, FiZap,
 } from 'react-icons/fi';
 import ProductCard from '../components/ProductCard';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import PlaceholderImage from '../components/ui/PlaceholderImage';
-import { productsAPI, categoriesAPI } from '../api';
+import Hero from '../components/home/Hero';
+import CountdownTimer from '../components/home/CountdownTimer';
+import Reveal from '../components/home/Reveal';
+import RecentlyViewedStrip from '../components/home/RecentlyViewedStrip';
+import RecommendedForYou from '../components/home/RecommendedForYou';
+import { productsAPI, categoriesAPI, heroBannerAPI } from '../api';
 
 const WHATSAPP_NUMBER = process.env.REACT_APP_WHATSAPP_NUMBER;
-
-const TRUST_POINTS = [
-  { icon: FiCreditCard, label: 'Secure payments via Paystack' },
-  { icon: FiMessageCircle, label: 'Order direct on WhatsApp' },
-  { icon: FiMapPin, label: 'Delivery across Ghana' },
-];
 
 const HOW_IT_WORKS = [
   { icon: FiSearch, title: 'Browse & Order', description: 'Explore wholesale products by category and add what you need to your cart.' },
@@ -36,33 +36,34 @@ const CATEGORY_TILE_COLORS = [
   'from-accent-500 to-primary-800',
 ];
 
+const SECTION_HEADER = 'text-2xl font-bold text-gray-900 md:text-3xl';
+
 const HomePage = () => {
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [trendingProducts, setTrendingProducts] = useState([]);
   const [flashSaleProducts, setFlashSaleProducts] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [heroProducts, setHeroProducts] = useState([]);
+  const [heroBanner, setHeroBanner] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [flashSaleCountdown, setFlashSaleCountdown] = useState({});
 
   const fetchProducts = React.useCallback(async () => {
     try {
       setLoading(true);
 
-      const [featuredRes, trendingRes, flashRes, categoriesRes, recentRes] = await Promise.all([
+      const [featuredRes, trendingRes, flashRes, categoriesRes, bannerRes] = await Promise.all([
         productsAPI.getAll({ featured: true, limit: 6 }),
         productsAPI.getAll({ trending: true, limit: 6 }),
         productsAPI.getAll({ flash_sale: true, limit: 6 }),
         categoriesAPI.getAll(),
-        productsAPI.getAll({ limit: 4, sort: 'created_at', order: 'desc' }),
+        heroBannerAPI.getActive().catch(() => ({ data: { data: null } })),
       ]);
 
       setProducts(featuredRes.data.data.products);
       setTrendingProducts(trendingRes.data.data.products);
       setFlashSaleProducts(flashRes.data.data.products);
       setCategories(categoriesRes.data.data);
-      setHeroProducts(recentRes.data.data.products);
+      setHeroBanner(bannerRes.data.data);
     } catch (error) {
       console.error('Failed to fetch products:', error);
     } finally {
@@ -70,137 +71,29 @@ const HomePage = () => {
     }
   }, []);
 
-  const updateCountdowns = React.useCallback(() => {
-    const countdowns = {};
-    flashSaleProducts.forEach((product) => {
-      if (product.flash_sale_end) {
-        const endTime = new Date(product.flash_sale_end).getTime();
-        const now = new Date().getTime();
-        const timeLeft = endTime - now;
-
-        if (timeLeft > 0) {
-          const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-          const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-          const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
-
-          countdowns[product.id] = `${hours}h ${minutes}m ${seconds}s`;
-        } else {
-          countdowns[product.id] = 'Ended';
-        }
-      }
-    });
-    setFlashSaleCountdown(countdowns);
-  }, [flashSaleProducts]);
-
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
 
-  useEffect(() => {
-    updateCountdowns();
-    const interval = setInterval(updateCountdowns, 1000);
-    return () => clearInterval(interval);
-  }, [updateCountdowns]);
-
   const hasAnyProducts = products.length > 0 || flashSaleProducts.length > 0 || trendingProducts.length > 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Hero */}
-      <div className="relative overflow-hidden bg-primary-800">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary-700 via-primary-800 to-primary-900" />
-        <div
-          className="absolute inset-0 opacity-[0.07]"
-          style={{
-            backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)',
-            backgroundSize: '28px 28px',
-          }}
+    <div className="min-h-screen bg-white">
+      <Helmet>
+        <title>Nexus Wholesale Hub — Premium Wholesale Marketplace</title>
+        <meta
+          name="description"
+          content="Shop flash sales, trending products, and trusted vendor stores on Nexus — Ghana's premium wholesale marketplace with fast delivery and secure checkout."
         />
-        <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-accent-400/20 blur-3xl" />
-        <div className="absolute -bottom-32 left-1/3 h-72 w-72 rounded-full bg-primary-300/10 blur-3xl" />
-
-        <div className="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-4 py-16 md:grid-cols-2 md:py-24">
-          <div>
-            <span className="mb-4 inline-block rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary-100">
-              Wholesale Marketplace &middot; Ghana
-            </span>
-            <h1 className="mb-5 text-4xl font-bold leading-tight text-white md:text-5xl">
-              Wholesale, sourced right<br />and delivered fast
-            </h1>
-            <p className="mb-8 max-w-lg text-lg text-primary-100">
-              Quality products at competitive bulk prices, with secure checkout
-              and delivery across Ghana.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Button
-                size="lg"
-                onClick={() => navigate('/products')}
-                className="!bg-accent-400 hover:!bg-accent-500"
-              >
-                Shop Now <FiArrowRight />
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() => document.getElementById('categories')?.scrollIntoView({ behavior: 'smooth' })}
-                className="!border-white/30 !bg-transparent !text-white hover:!bg-white/10"
-              >
-                Browse Categories
-              </Button>
-            </div>
-
-            <div className="mt-10 flex flex-wrap gap-x-8 gap-y-3">
-              {TRUST_POINTS.map(({ icon: Icon, label }) => (
-                <div key={label} className="flex items-center gap-2 text-sm text-primary-100">
-                  <Icon size={16} className="text-accent-400" />
-                  {label}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Floating product preview */}
-          <div className="relative hidden h-96 md:block">
-            {heroProducts.slice(0, 4).map((product, idx) => {
-              const positions = [
-                'left-4 top-2 w-48 rotate-[-4deg] z-20',
-                'right-0 top-16 w-48 rotate-[3deg] z-10',
-                'left-16 bottom-4 w-44 rotate-[2deg] z-10',
-                'right-8 bottom-0 w-40 rotate-[-3deg] z-0',
-              ];
-              return (
-                <div key={product.id} className={`absolute ${positions[idx]}`}>
-                  <Card padded={false} className="overflow-hidden shadow-card-hover">
-                    <div className="h-28 bg-gray-100">
-                      <PlaceholderImage
-                        src={product.image_url}
-                        alt={product.name}
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                    <div className="p-3">
-                      <p className="truncate text-xs font-semibold text-gray-900">{product.name}</p>
-                      <p className="text-sm font-bold text-primary-700">GHS {product.price.toFixed(2)}</p>
-                    </div>
-                  </Card>
-                </div>
-              );
-            })}
-            {heroProducts.length === 0 && (
-              <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-white/20 text-primary-200">
-                Products will preview here
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      </Helmet>
+      <Hero banner={heroBanner} />
 
       {/* Shop by Category */}
       {categories.length > 0 && (
-        <section id="categories" className="bg-white py-14">
+        <Reveal as="section" id="categories" className="bg-white py-14">
           <div className="mx-auto max-w-7xl px-4">
             <div className="mb-8 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-900">Shop by Category</h2>
+              <h2 className={SECTION_HEADER}>Shop by Category</h2>
               <button
                 onClick={() => navigate('/products')}
                 className="text-sm font-semibold text-primary-600 hover:text-primary-700"
@@ -225,7 +118,7 @@ const HomePage = () => {
                       <PlaceholderImage
                         src={category.image_url}
                         alt={category.name}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
                     ) : (
                       <div
@@ -245,7 +138,7 @@ const HomePage = () => {
               ))}
             </div>
           </div>
-        </section>
+        </Reveal>
       )}
 
       <div className="mx-auto max-w-7xl px-4 py-12">
@@ -255,9 +148,11 @@ const HomePage = () => {
           <>
             {/* Flash Sale Section */}
             {flashSaleProducts.length > 0 && (
-              <section className="mb-14">
+              <Reveal as="section" className="mb-14">
                 <div className="mb-6 flex items-center justify-between">
-                  <h2 className="text-2xl font-bold text-gray-900">Flash Sale</h2>
+                  <h2 className={`${SECTION_HEADER} flex items-center gap-2`}>
+                    <FiZap className="text-accent-500" /> Flash Sale
+                  </h2>
                   <button
                     onClick={() => navigate('/products?flash_sale=true')}
                     className="text-sm font-semibold text-primary-600 hover:text-primary-700"
@@ -266,13 +161,15 @@ const HomePage = () => {
                   </button>
                 </div>
 
-                <Card className="mb-6 border border-accent-100 bg-accent-50">
+                <Card className="mb-6 border border-accent-200 bg-accent-50">
                   <div className="grid grid-cols-2 gap-4 md:grid-cols-6">
                     {flashSaleProducts.slice(0, 6).map((product) => (
-                      <div key={product.id} className="text-center">
-                        <div className="text-lg font-bold text-accent-600">
-                          {flashSaleCountdown[product.id] || 'Loading...'}
-                        </div>
+                      <div key={product.id} className="flex justify-center">
+                        {product.flash_sale_end ? (
+                          <CountdownTimer endTime={product.flash_sale_end} label="" />
+                        ) : (
+                          <span className="text-sm font-semibold text-accent-700">Limited stock</span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -283,14 +180,14 @@ const HomePage = () => {
                     <ProductCard key={product.id} product={product} />
                   ))}
                 </div>
-              </section>
+              </Reveal>
             )}
 
             {/* Trending Products Section */}
             {trendingProducts.length > 0 && (
-              <section className="mb-14">
+              <Reveal as="section" className="mb-14">
                 <div className="mb-6 flex items-center justify-between">
-                  <h2 className="text-2xl font-bold text-gray-900">Trending Now</h2>
+                  <h2 className={SECTION_HEADER}>Trending Now</h2>
                   <button
                     onClick={() => navigate('/products?trending=true')}
                     className="text-sm font-semibold text-primary-600 hover:text-primary-700"
@@ -304,14 +201,14 @@ const HomePage = () => {
                     <ProductCard key={product.id} product={product} />
                   ))}
                 </div>
-              </section>
+              </Reveal>
             )}
 
             {/* Featured Products Section */}
             {products.length > 0 && (
-              <section>
+              <Reveal as="section">
                 <div className="mb-6 flex items-center justify-between">
-                  <h2 className="text-2xl font-bold text-gray-900">Featured Products</h2>
+                  <h2 className={SECTION_HEADER}>Featured Products</h2>
                   <button
                     onClick={() => navigate('/products?featured=true')}
                     className="text-sm font-semibold text-primary-600 hover:text-primary-700"
@@ -325,7 +222,7 @@ const HomePage = () => {
                     <ProductCard key={product.id} product={product} />
                   ))}
                 </div>
-              </section>
+              </Reveal>
             )}
 
             {!hasAnyProducts && (
@@ -338,15 +235,23 @@ const HomePage = () => {
         )}
       </div>
 
+      <Reveal as="section" className="pb-14">
+        <RecommendedForYou />
+      </Reveal>
+
+      <Reveal as="section" className="pb-14">
+        <RecentlyViewedStrip />
+      </Reveal>
+
       {/* How It Works */}
-      <section className="bg-white py-16">
+      <Reveal as="section" className="bg-primary-50/50 py-16">
         <div className="mx-auto max-w-7xl px-4">
-          <h2 className="mb-10 text-center text-2xl font-bold text-gray-900">How It Works</h2>
+          <h2 className="mb-10 text-center text-2xl font-bold text-gray-900 md:text-3xl">How It Works</h2>
           <div className="grid grid-cols-1 gap-10 md:grid-cols-3">
             {HOW_IT_WORKS.map(({ icon: Icon, title, description }) => (
               <div key={title} className="text-center">
-                <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary-50">
-                  <Icon className="text-primary-600" size={24} />
+                <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary-100">
+                  <Icon className="text-primary-700" size={24} />
                 </span>
                 <h3 className="mb-2 text-lg font-bold text-gray-900">{title}</h3>
                 <p className="mx-auto max-w-xs text-sm text-gray-500">{description}</p>
@@ -354,31 +259,31 @@ const HomePage = () => {
             ))}
           </div>
         </div>
-      </section>
+      </Reveal>
 
       <div className="mx-auto max-w-7xl px-4 pb-16">
         {/* WhatsApp CTA Banner */}
         {WHATSAPP_NUMBER && (
-          <section className="mb-16 overflow-hidden rounded-2xl bg-accent-400">
+          <Reveal as="section" className="mb-16 overflow-hidden rounded-2xl bg-accent-400">
             <div className="flex flex-col items-center justify-between gap-6 px-8 py-10 text-center md:flex-row md:text-left">
               <div>
-                <h2 className="mb-2 text-2xl font-bold text-white">Need a quick quote?</h2>
-                <p className="text-accent-50">Chat with us directly on WhatsApp for bulk pricing and fast answers.</p>
+                <h2 className="mb-2 text-2xl font-bold text-primary-900">Need a quick quote?</h2>
+                <p className="text-primary-800">Chat with us directly on WhatsApp for bulk pricing and fast answers.</p>
               </div>
               <a
                 href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Hello, I\'d like to place a bulk order.')}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex flex-shrink-0 items-center gap-2 rounded-full bg-white px-6 py-3 font-semibold text-accent-600 shadow-sm transition-transform hover:scale-105"
+                className="flex flex-shrink-0 items-center gap-2 rounded-full bg-primary-900 px-6 py-3 font-semibold text-white shadow-sm transition-transform hover:scale-105"
               >
                 <FiMessageCircle size={18} /> Chat on WhatsApp
               </a>
             </div>
-          </section>
+          </Reveal>
         )}
 
         {/* Trust / Features Band */}
-        <section className="overflow-hidden rounded-2xl bg-primary-800">
+        <Reveal as="section" className="overflow-hidden rounded-2xl bg-primary-800">
           <div className="grid grid-cols-1 gap-px bg-primary-700 md:grid-cols-3">
             <div className="bg-primary-800 p-8 text-center">
               <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-accent-400/20">
@@ -402,7 +307,7 @@ const HomePage = () => {
               <p className="text-sm text-primary-200">Reach us anytime via WhatsApp and email</p>
             </div>
           </div>
-        </section>
+        </Reveal>
       </div>
     </div>
   );

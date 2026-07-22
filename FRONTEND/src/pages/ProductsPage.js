@@ -4,13 +4,15 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { FiX } from 'react-icons/fi';
+import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
+import { FiX, FiCamera } from 'react-icons/fi';
 import ProductCard from '../components/ProductCard';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Pagination from '../components/ui/Pagination';
 import PriceRangeSlider from '../components/ui/PriceRangeSlider';
+import RecentlyViewedStrip from '../components/home/RecentlyViewedStrip';
 import { productsAPI } from '../api';
 import axios from 'axios';
 
@@ -18,6 +20,9 @@ const RATING_OPTIONS = [4, 3, 2];
 
 const ProductsPage = () => {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [visualResults, setVisualResults] = useState(location.state?.visualResults || null);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -45,6 +50,20 @@ const ProductsPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Re-sync from the URL on every navigation to /products, not just the
+  // first mount — react-router doesn't remount this page when only the
+  // query string changes (e.g. searching again from the Header while
+  // already here), so without this the page silently kept showing stale
+  // results. Also clears any leftover image-search results so a fresh
+  // text/category search isn't blocked by the visualResults guard below.
+  useEffect(() => {
+    setSelectedCategory(searchParams.get('category') || '');
+    setSearchTerm(searchParams.get('search') || '');
+    setPage(1);
+    setVisualResults(location.state?.visualResults || null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, location.state]);
+
   // Debounce price slider drags so we don't fire a request per pixel moved
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedPriceRange(priceRange), 350);
@@ -52,10 +71,16 @@ const ProductsPage = () => {
   }, [priceRange]);
 
   useEffect(() => {
+    if (visualResults) return; // showing photo-search results instead of the filtered catalog
     if (priceBounds && !debouncedPriceRange) return; // wait for initial bounds
     fetchProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategory, searchTerm, sortBy, sortOrder, page, debouncedPriceRange, minRating, onSale]);
+  }, [selectedCategory, searchTerm, sortBy, sortOrder, page, debouncedPriceRange, minRating, onSale, visualResults]);
+
+  const clearVisualResults = () => {
+    setVisualResults(null);
+    navigate('/products', { replace: true, state: {} });
+  };
 
   const fetchCategories = async () => {
     try {
@@ -155,8 +180,18 @@ const ProductsPage = () => {
     priceBounds && debouncedPriceRange &&
     (debouncedPriceRange[0] > priceBounds.min || debouncedPriceRange[1] < priceBounds.max);
 
+  const pageTitle = selectedCategory
+    ? `${selectedCategory} — Nexus Wholesale Hub`
+    : searchTerm
+    ? `Search: ${searchTerm} — Nexus Wholesale Hub`
+    : 'All Products — Nexus Wholesale Hub';
+
   return (
     <div className="min-h-screen bg-gray-50">
+      <Helmet>
+        <title>{pageTitle}</title>
+        <meta name="description" content="Browse wholesale products across every category on Nexus, with flash sales, trending items, and trusted vendor stores." />
+      </Helmet>
       <div className="mx-auto max-w-7xl px-4 py-8">
         <h1 className="mb-8 text-3xl font-bold text-gray-900">All Products</h1>
 
@@ -369,7 +404,30 @@ const ProductsPage = () => {
               </div>
             )}
 
-            {loading ? (
+            {visualResults ? (
+              <>
+                <div className="mb-4 flex items-center justify-between rounded-lg bg-primary-50 px-4 py-3 text-sm text-primary-800">
+                  <span className="flex items-center gap-2">
+                    <FiCamera size={16} /> Showing visually similar products to your photo ({visualResults.length} found)
+                  </span>
+                  <button onClick={clearVisualResults} className="font-semibold underline">
+                    Clear
+                  </button>
+                </div>
+                {visualResults.length > 0 ? (
+                  <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {visualResults.map((product) => (
+                      <ProductCard key={product.id} product={product} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-16 text-center">
+                    <p className="mb-4 text-lg text-gray-600">No visually similar products found</p>
+                    <Button onClick={clearVisualResults}>Browse All Products</Button>
+                  </div>
+                )}
+              </>
+            ) : loading ? (
               <div className="py-16 text-center text-gray-500">Loading products&hellip;</div>
             ) : products.length > 0 ? (
               <>
@@ -397,6 +455,10 @@ const ProductsPage = () => {
             )}
           </div>
         </div>
+      </div>
+
+      <div className="py-4">
+        <RecentlyViewedStrip />
       </div>
     </div>
   );

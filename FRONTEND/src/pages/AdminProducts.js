@@ -7,7 +7,6 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { automationAPI, categoriesAPI } from '../api';
 import { FiEdit2, FiTrash2, FiPlus, FiSearch, FiImage } from 'react-icons/fi';
-import AdminLayout from '../components/AdminLayout';
 import PlaceholderImage from '../components/ui/PlaceholderImage';
 import Swal from 'sweetalert2';
 
@@ -207,7 +206,6 @@ const AdminProducts = () => {
   };
 
   return (
-    <AdminLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -515,7 +513,6 @@ const AdminProducts = () => {
           </div>
         )}
       </div>
-    </AdminLayout>
   );
 };
 

@@ -16,6 +16,46 @@ import { toast } from '../components/ui/Toast';
 import { ORDER_STATUS_VARIANT, formatOrderStatus } from '../utils/orderStatus';
 
 const CANCELLABLE_STATUSES = ['pending', 'processing'];
+const TRACKING_STEPS = ['pending', 'processing', 'shipped', 'delivered'];
+
+const OrderTracker = ({ status }) => {
+  if (status === 'cancelled') {
+    return (
+      <div className="mb-6 rounded-lg bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+        This order was cancelled.
+      </div>
+    );
+  }
+
+  const currentIndex = TRACKING_STEPS.indexOf(status);
+
+  return (
+    <div className="mb-6 flex items-center">
+      {TRACKING_STEPS.map((step, index) => {
+        const reached = index <= currentIndex;
+        return (
+          <React.Fragment key={step}>
+            <div className="flex flex-col items-center">
+              <div
+                className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
+                  reached ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-500'
+                }`}
+              >
+                {index + 1}
+              </div>
+              <span className={`mt-1 text-xs capitalize ${reached ? 'font-semibold text-primary-700' : 'text-gray-400'}`}>
+                {step}
+              </span>
+            </div>
+            {index < TRACKING_STEPS.length - 1 && (
+              <div className={`mx-2 h-0.5 flex-1 ${index < currentIndex ? 'bg-primary-600' : 'bg-gray-200'}`} />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+};
 
 const OrderDetailPage = () => {
   const { id } = useParams();
@@ -100,6 +140,10 @@ const OrderDetailPage = () => {
             {formatOrderStatus(order.status)}
           </Badge>
         </div>
+
+        <Card className="mb-6">
+          <OrderTracker status={order.status} />
+        </Card>
 
         <Card className="mb-6">
           <h2 className="mb-4 text-lg font-semibold text-gray-900">Items</h2>

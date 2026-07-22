@@ -1,7 +1,7 @@
 import React from 'react';
 
 const VARIANT_CLASSES = {
-  primary: 'bg-primary-600 text-white hover:bg-primary-700 focus-visible:ring-primary-500 disabled:bg-primary-300',
+  primary: 'bg-accent-400 text-primary-900 hover:bg-accent-500 focus-visible:ring-accent-500 disabled:bg-accent-200 disabled:text-primary-400',
   secondary: 'bg-gray-900 text-white hover:bg-gray-800 focus-visible:ring-gray-500 disabled:bg-gray-400',
   outline: 'border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus-visible:ring-primary-500 disabled:text-gray-300',
   ghost: 'text-gray-600 hover:bg-gray-100 focus-visible:ring-gray-400 disabled:text-gray-300',

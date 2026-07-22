@@ -1,14 +1,16 @@
 """
-Product Routes for BlessedNet Wholesale Hub
+Product Routes for Nexus Wholesale Hub
 Handles product catalog, search, filtering, and admin operations
 """
 
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models import db, Product, User
+from models import db, Product, User, Vendor
 from datetime import datetime
 from sqlalchemy import and_, or_, func
 from utils.security import safe_error_response
+from utils.image_analysis import compute_dominant_color_for_local_path, compute_dominant_color, color_distance
+from utils.limiter import limiter
 
 products_bp = Blueprint('products', __name__, url_prefix='/api/products')
 
@@ -16,6 +18,18 @@ def is_admin(user_id):
     """Check if user is admin"""
     user = User.query.get(user_id)
     return user and user.is_admin
+
+
+def get_own_approved_vendor(user_id):
+    """The current user's own approved+active vendor profile, or None"""
+    return Vendor.query.filter_by(user_id=user_id, is_approved=True, is_active=True).first()
+
+
+def can_manage_product(user_id, product, own_vendor):
+    """Admins can manage any product; an approved vendor can manage only their own"""
+    if is_admin(user_id):
+        return True
+    return own_vendor is not None and product.vendor_id == own_vendor.id
 
 
 @products_bp.route('', methods=['GET'])
@@ -53,6 +67,8 @@ def get_products():
         max_price = request.args.get('max_price', type=float)
         min_rating = request.args.get('min_rating', type=float)
         on_sale = request.args.get('on_sale', '').lower() == 'true'
+        ids = request.args.get('ids', '').strip()
+        vendor_id = request.args.get('vendor_id', type=int)
 
         # Validate pagination
         if page < 1:
@@ -96,6 +112,16 @@ def get_products():
         if on_sale:
             query = query.filter(Product.discount_percent > 0)
 
+        if ids:
+            try:
+                id_list = [int(x) for x in ids.split(',') if x.strip()]
+            except ValueError:
+                id_list = []
+            query = query.filter(Product.id.in_(id_list))
+
+        if vendor_id is not None:
+            query = query.filter_by(vendor_id=vendor_id)
+
         # Apply sorting
         valid_sorts = ['name', 'price', 'rating', 'created_at']
         if sort not in valid_sorts:
@@ -130,6 +156,52 @@ def get_products():
     except Exception as e:
         current_app.logger.exception(e)
         return safe_error_response('Failed to retrieve products')
+
+
+@products_bp.route('/search-by-image', methods=['POST'])
+@limiter.limit("10 per minute")
+def search_by_image():
+    """
+    Approximate visual search: matches products by average-color similarity
+    to the uploaded photo. This is a lightweight heuristic (no external
+    vision API) — it finds products with a visually similar dominant color,
+    not products containing the same object.
+    """
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+
+        query_color = compute_dominant_color(file.stream)
+        if not query_color:
+            return jsonify({'error': 'Could not read that image'}), 400
+
+        # Bound the candidate set for cost — favor well-established products
+        candidates = (
+            Product.query
+            .filter(Product.dominant_color.isnot(None))
+            .order_by(Product.rating.desc(), Product.created_at.desc())
+            .limit(300)
+            .all()
+        )
+
+        ranked = sorted(candidates, key=lambda p: color_distance(query_color, p.dominant_color))
+        matches = ranked[:20]
+
+        return jsonify({
+            'message': 'Visual search results',
+            'data': {
+                'query_color': query_color,
+                'products': [p.to_dict() for p in matches],
+            }
+        }), 200
+
+    except Exception as e:
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to search by image')
 
 
 @products_bp.route('/categories', methods=['GET'])
@@ -210,24 +282,33 @@ def create_product():
     """
     try:
         user_id = int(get_jwt_identity())
-        
-        if not is_admin(user_id):
-            return jsonify({'error': 'Admin access required'}), 403
-        
+        admin = is_admin(user_id)
+        own_vendor = get_own_approved_vendor(user_id)
+
+        if not admin and not own_vendor:
+            return jsonify({'error': 'Admin or approved vendor access required'}), 403
+
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data provided'}), 400
-        
+
         # Validate required fields
         required_fields = ['name', 'category', 'price']
         for field in required_fields:
             if not data.get(field):
                 return jsonify({'error': f'{field} is required'}), 400
-        
+
         # Check if SKU already exists
         if data.get('sku') and Product.query.filter_by(sku=data['sku']).first():
             return jsonify({'error': 'SKU already exists'}), 409
-        
+
+        # A vendor can only create products under their own store; an admin
+        # may optionally assign a vendor_id (or leave it null for a
+        # Nexus-direct product)
+        vendor_id = own_vendor.id if own_vendor else data.get('vendor_id')
+
+        image_url = data.get('image_url', '')
+
         # Create product
         product = Product(
             name=data['name'].strip(),
@@ -235,15 +316,17 @@ def create_product():
             category=data['category'].strip(),
             price=float(data['price']),
             discount_percent=float(data.get('discount_percent', 0)),
-            image_url=data.get('image_url', ''),
+            image_url=image_url,
             sku=data.get('sku', ''),
             stock_quantity=int(data.get('stock_quantity', 0)),
             rating=float(data.get('rating', 5.0)),
             is_featured=bool(data.get('is_featured', False)),
             is_trending=bool(data.get('is_trending', False)),
-            is_flash_sale=bool(data.get('is_flash_sale', False))
+            is_flash_sale=bool(data.get('is_flash_sale', False)),
+            vendor_id=vendor_id,
+            dominant_color=compute_dominant_color_for_local_path(image_url)
         )
-        
+
         db.session.add(product)
         db.session.commit()
         
@@ -272,19 +355,20 @@ def update_product(product_id):
     """
     try:
         user_id = int(get_jwt_identity())
-        
-        if not is_admin(user_id):
-            return jsonify({'error': 'Admin access required'}), 403
-        
+
         product = Product.query.get(product_id)
-        
+
         if not product:
             return jsonify({'error': 'Product not found'}), 404
-        
+
+        own_vendor = get_own_approved_vendor(user_id)
+        if not can_manage_product(user_id, product, own_vendor):
+            return jsonify({'error': 'You do not have permission to edit this product'}), 403
+
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data provided'}), 400
-        
+
         # Update allowed fields
         allowed_fields = [
             'name', 'description', 'category', 'price', 'discount_percent',
@@ -302,7 +386,10 @@ def update_product(product_id):
                     setattr(product, field, bool(data[field]))
                 else:
                     setattr(product, field, data[field].strip() if isinstance(data[field], str) else data[field])
-        
+
+        if 'image_url' in data:
+            product.dominant_color = compute_dominant_color_for_local_path(product.image_url)
+
         product.updated_at = datetime.utcnow()
         db.session.commit()
         
@@ -326,15 +413,16 @@ def delete_product(product_id):
     """Delete a product (admin only)"""
     try:
         user_id = int(get_jwt_identity())
-        
-        if not is_admin(user_id):
-            return jsonify({'error': 'Admin access required'}), 403
-        
+
         product = Product.query.get(product_id)
-        
+
         if not product:
             return jsonify({'error': 'Product not found'}), 404
-        
+
+        own_vendor = get_own_approved_vendor(user_id)
+        if not can_manage_product(user_id, product, own_vendor):
+            return jsonify({'error': 'You do not have permission to delete this product'}), 403
+
         db.session.delete(product)
         db.session.commit()
         

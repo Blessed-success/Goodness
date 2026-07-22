@@ -5,7 +5,6 @@
 
 import React, { useState } from 'react';
 import Swal from 'sweetalert2';
-import AdminLayout from '../components/AdminLayout';
 import { automationAPI } from '../api';
 
 const NegotiationAssistantPage = () => {
@@ -41,7 +40,6 @@ const NegotiationAssistantPage = () => {
   };
 
   return (
-    <AdminLayout>
       <div className="space-y-6">
         <div>
           <h2 className="text-3xl font-bold text-gray-900">Supplier Negotiation Assistant</h2>
@@ -123,7 +121,6 @@ const NegotiationAssistantPage = () => {
           </div>
         </div>
       </div>
-    </AdminLayout>
   );
 };
 

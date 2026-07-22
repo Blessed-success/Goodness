@@ -1,5 +1,5 @@
 """
-Cart Routes for BlessedNet Wholesale Hub
+Cart Routes for Nexus Wholesale Hub
 Handles shopping cart operations
 """
 
