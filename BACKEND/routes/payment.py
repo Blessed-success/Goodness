@@ -331,7 +331,8 @@ def verify_payment_get(reference):
             customer_email = data.get('customer', {}).get('email', 'N/A')
             amount_ghs = data.get('amount', 0) / 100
             message = f"New Order!\nEmail: {customer_email}\nAmount: GHS {amount_ghs}"
-            whatsapp_url = f"https://wa.me/233502683544?text={message.replace(' ', '%20').replace('\n', '%0A')}"
+            encoded_message = message.replace(' ', '%20').replace('\n', '%0A')
+            whatsapp_url = f"https://wa.me/233502683544?text={encoded_message}"
             current_app.logger.info(f"Send WhatsApp: {whatsapp_url}")
             
             return jsonify({
