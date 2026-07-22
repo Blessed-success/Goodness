@@ -64,6 +64,8 @@ def initialize_super_admin():
         if not any(c in '!@#$%^&*()_+-=[]{}|;:,.<>?' for c in password):
             return jsonify({'error': 'Password must contain special character'}), 400
         
+        username = data.get('username', '').strip() or email.split('@')[0]
+
         # Check if user exists
         existing_user = User.query.filter_by(email=email).first()
         if existing_user:
@@ -74,7 +76,7 @@ def initialize_super_admin():
         else:
             # Create new user
             user = User(
-                username=email.split('@')[0],  # Use email prefix as username
+                username=username,
                 email=email,
                 full_name=full_name,
                 is_admin=True,
@@ -83,11 +85,11 @@ def initialize_super_admin():
             user.set_password(password)
             db.session.add(user)
             db.session.flush()  # Get user ID
-        
+
         # Create admin credential
         credential = AdminCredential(
             user_id=user.id,
-            username=email.split('@')[0],
+            username=username,
             email=email,
             role='super_admin',
             is_active=True,
