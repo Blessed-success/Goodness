@@ -193,6 +193,23 @@ try:
         db.create_all()
         print("✅ Database tables created successfully")
 
+        # db.create_all() only creates tables that don't exist yet — it never
+        # alters existing ones. The marketplace-upgrade merge added columns to
+        # the pre-existing users/products tables, so add them here if missing.
+        from sqlalchemy import text
+        with db.engine.connect() as conn:
+            for statement in [
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_vendor BOOLEAN DEFAULT FALSE",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_hash VARCHAR(255)",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires TIMESTAMP",
+                "ALTER TABLE products ADD COLUMN IF NOT EXISTS review_count INTEGER DEFAULT 0",
+                "ALTER TABLE products ADD COLUMN IF NOT EXISTS vendor_id INTEGER REFERENCES vendors(id)",
+                "ALTER TABLE products ADD COLUMN IF NOT EXISTS dominant_color VARCHAR(7)",
+            ]:
+                conn.execute(text(statement))
+            conn.commit()
+        print("✅ Schema columns backfilled for existing tables")
+
         # Seed default admin user if not exists
         admin_email = os.getenv('DEFAULT_ADMIN_EMAIL', 'admin@besthub.com')
         admin_password = os.getenv('DEFAULT_ADMIN_PASSWORD', 'Admin@123')
