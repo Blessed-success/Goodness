@@ -22,7 +22,12 @@ load_dotenv()
 app = Flask(__name__)
 
 # Configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///blessednet.db')
+database_url = os.getenv('DATABASE_URL', 'sqlite:///blessednet.db')
+# Render (and most Postgres providers) hand out "postgres://" URLs, but SQLAlchemy 1.4+
+# only recognizes the "postgresql://" scheme.
+if database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'change-this-secret-key')
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'change-this-secret-key')
@@ -134,8 +139,9 @@ app.register_blueprint(location_bp)
 app.register_blueprint(whatsapp_bp)
 app.register_blueprint(competitor_bp)
 
-if __name__ == '__main__':
-    # Create all database tables
+def init_database():
+    """Create tables and seed default data. Runs on import so it executes
+    both under `python app.py` (local dev) and under gunicorn (production)."""
     with app.app_context():
         db.create_all()
         print("✅ Database tables created successfully")
@@ -272,7 +278,12 @@ if __name__ == '__main__':
         # else:
         #     print("⚠️  Price monitor scheduler initialization failed")
         print("⚠️  Price monitor scheduler disabled for debugging")
-    
+
+
+# Run once at import time so tables/seed data exist under gunicorn too, not just `python app.py`.
+init_database()
+
+if __name__ == '__main__':
     # Production-ready server configuration
     port = int(os.environ.get('PORT', 5000))
     debug_mode = os.getenv('FLASK_ENV', 'development') == 'development'

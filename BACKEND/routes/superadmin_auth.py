@@ -42,7 +42,8 @@ def initialize_super_admin():
         # Verify setup key (from environment for security)
         setup_key = os.getenv('SUPERADMIN_SETUP_KEY', 'default-setup-key-change-this')
         if data.get('setup_key') != setup_key:
-            current_app.logger.warning(f'Invalid super admin setup attempt from {request.remote_addr}')\n            return jsonify({'error': 'Invalid setup key'}), 401
+            current_app.logger.warning(f'Invalid super admin setup attempt from {request.remote_addr}')
+            return jsonify({'error': 'Invalid setup key'}), 401
         
         email = data.get('email', '').strip()
         password = data.get('password', '').strip()
@@ -63,7 +64,8 @@ def initialize_super_admin():
         if not any(c in '!@#$%^&*()_+-=[]{}|;:,.<>?' for c in password):
             return jsonify({'error': 'Password must contain special character'}), 400
         
-        # Check if user exists\n        existing_user = User.query.filter_by(email=email).first()
+        # Check if user exists
+        existing_user = User.query.filter_by(email=email).first()
         if existing_user:
             user = existing_user
             # Mark as admin if not already
@@ -164,7 +166,8 @@ def quick_super_admin_login():
             remaining_attempts = 5 - credential.login_attempts
             if credential.is_locked:
                 return jsonify({
-                    'error': 'Too many failed attempts. Account locked for 30 minutes',\n                    'locked_until': credential.locked_until.isoformat()
+                    'error': 'Too many failed attempts. Account locked for 30 minutes',
+                    'locked_until': credential.locked_until.isoformat()
                 }), 423
             
             return jsonify({

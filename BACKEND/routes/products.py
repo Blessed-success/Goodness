@@ -297,27 +297,10 @@ def delete_product(product_id):
         
         db.session.delete(product)
         db.session.commit()
-        
+
         return jsonify({'message': 'Product deleted successfully'}), 200
-    
+
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception(e)
         return safe_error_response('Failed to delete product')
-
-
-@products_bp.route('/categories', methods=['GET'])
-def get_categories():
-    """Get all product categories"""
-    try:
-        categories = db.session.query(Product.category).distinct().all()
-        categories = [cat[0] for cat in categories if cat[0]]
-        
-        return jsonify({
-            'message': 'Categories retrieved successfully',
-            'data': sorted(categories)
-        }), 200
-    
-    except Exception as e:
-        current_app.logger.exception(e)
-        return safe_error_response('Failed to retrieve categories')
