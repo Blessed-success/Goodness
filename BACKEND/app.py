@@ -82,6 +82,8 @@ from routes.wishlist import wishlist_bp
 from routes.reviews import reviews_bp
 from routes.notifications import notifications_bp
 from routes.vendors import vendors_bp
+from routes.superadmin_auth import superadmin_auth_bp
+from routes.credentials import credentials_bp
 from utils.scheduler import SchedulerManager
 
 # Serve uploaded images (product/category photos saved by the admin upload
@@ -182,6 +184,8 @@ app.register_blueprint(wishlist_bp)
 app.register_blueprint(reviews_bp)
 app.register_blueprint(notifications_bp)
 app.register_blueprint(vendors_bp)
+app.register_blueprint(superadmin_auth_bp)
+app.register_blueprint(credentials_bp)
 
 # Database table creation and seed data. This runs at import time (not just
 # under `python app.py`) so it also executes under gunicorn in production,
