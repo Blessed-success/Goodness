@@ -95,8 +95,6 @@ def initialize_super_admin():
             is_active=True,
             updated_by='system-init'
         )
-        db.session.add(credential)
-        db.session.flush()  # Assign credential.id before set_password() references it
         credential.set_password(password)
 
         db.session.commit()

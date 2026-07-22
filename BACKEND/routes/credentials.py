@@ -116,8 +116,6 @@ def create_admin_credential():
             is_active=data.get('is_active', True),
             updated_by=get_jwt_identity()
         )
-        db.session.add(credential)
-        db.session.flush()  # Assign credential.id before set_password() references it
         credential.set_password(data.get('password'))
 
         db.session.commit()

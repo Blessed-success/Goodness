@@ -49,7 +49,15 @@ class AdminCredential(db.Model):
         self.password_hash = generate_password_hash(password)
         self.last_password_change = datetime.utcnow()
         self.requires_password_change = False
-        
+
+        # PasswordHistory needs a real admin_credential_id. If this is a
+        # brand-new record that hasn't been inserted yet, flush now (after
+        # password_hash is set, since that column is NOT NULL too) so self.id
+        # is populated.
+        if self.id is None:
+            db.session.add(self)
+            db.session.flush()
+
         # Add to password history
         history = PasswordHistory(
             admin_credential_id=self.id,
