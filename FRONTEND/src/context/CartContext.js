@@ -23,6 +23,21 @@ export const CartProvider = ({ children }) => {
     }
   }, []);
 
+  // Keep cart state in sync with auth state: fetch on login (so the badge
+  // reflects the newly-signed-in user's real cart immediately), and clear
+  // on logout (manual, or automatic via a 401 response) — otherwise the
+  // last-fetched cart lingers after the user is no longer authenticated.
+  useEffect(() => {
+    const handleLogin = () => fetchCart();
+    const handleLogout = () => setCart(null);
+    window.addEventListener('auth-login', handleLogin);
+    window.addEventListener('auth-logout', handleLogout);
+    return () => {
+      window.removeEventListener('auth-login', handleLogin);
+      window.removeEventListener('auth-logout', handleLogout);
+    };
+  }, []);
+
   const fetchCart = async () => {
     try {
       setError(null);

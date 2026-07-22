@@ -9,11 +9,11 @@
  content="width=device-width, initial-scale=1"
 />
 
-  <title>BlessedNet Wholesale Hub | Wholesale Marketplace</title>
+  <title>Nexus Wholesale Hub | Wholesale Marketplace</title>
 
 <meta
  name="description"
- content="BlessedNet Wholesale Hub - Global wholesale marketplace connecting buyers with manufacturers, suppliers, and importers."
+ content="Nexus Wholesale Hub - Global wholesale marketplace connecting buyers with manufacturers, suppliers, and importers."
 />
 
 <meta
@@ -21,15 +21,17 @@
  content="wholesale marketplace, suppliers, manufacturers, import export, bulk products, Ghana wholesale"
 />
 
-  <meta name="theme-color" content="#ff6a00" />
+  <meta name="theme-color" content="#175036" />
 
-  <meta property="og:title" content="BlessedNet Wholesale Hub" />
+  <meta property="og:title" content="Nexus Wholesale Hub" />
   <meta
     property="og:description"
     content="Find trusted suppliers and source products globally."
   />
   <meta property="og:type" content="website" />
 
+  <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+  <link rel="apple-touch-icon" href="%PUBLIC_URL%/icons/icon-192.png" />
   <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -39,8 +41,6 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet"
   />
-
-  <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
     * {
@@ -75,17 +75,23 @@
     }
 
     .logo {
-      color: #ff6a00;
+      color: #175036;
       font-size: 38px;
       font-weight: 800;
       margin-bottom: 15px;
+    }
+
+    .logo img {
+      height: 48px;
+      width: auto;
+      display: block;
     }
 
     .spinner {
       width: 55px;
       height: 55px;
       border: 6px solid #eeeeee;
-      border-top: 6px solid #ff6a00;
+      border-top: 6px solid #175036;
       border-radius: 50%;
       animation: spin 1s linear infinite;
     }
@@ -95,122 +101,20 @@
         transform: rotate(360deg);
       }
     }
-
-    /* Marketplace Header Preview */
-    .preview-header {
-      background: #ffffff;
-      border-bottom: 1px solid #e5e7eb;
-    }
-
-    .topbar {
-      background: #fafafa;
-      font-size: 12px;
-      color: #666666;
-      padding: 8px 20px;
-      display: flex;
-      justify-content: space-between;
-      flex-wrap: wrap;
-    }
-
-    .brand-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 20px;
-      padding: 18px 20px;
-      flex-wrap: wrap;
-    }
-
-    .brand {
-      color: #ff6a00;
-      font-size: 32px;
-      font-weight: 800;
-    }
-
-    .search-preview {
-      flex: 1;
-      min-width: 250px;
-      max-width: 700px;
-      height: 48px;
-      border: 3px solid #ff6a00;
-      border-radius: 4px;
-      background: white;
-    }
-
-    .header-links {
-      font-size: 14px;
-      color: #555;
-    }
-
-    .categories {
-      background: #ff6a00;
-      color: white;
-      display: flex;
-      gap: 25px;
-      padding: 12px 20px;
-      overflow-x: auto;
-      white-space: nowrap;
-    }
-
-    .categories span {
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-    }
-
-    .categories span:hover {
-      opacity: 0.85;
-    }
   </style>
 
 </head>
 
 <body>
   <noscript>
-    You need to enable JavaScript to run BlessedNet Wholesale Hub.
+    You need to enable JavaScript to run Nexus Wholesale Hub.
   </noscript>
 
   <!-- Loading Screen -->
 
   <div id="loader" class="market-loader">
-    <div class="logo">BlessedNet</div>
+    <div class="logo"><img src="%PUBLIC_URL%/logo.png" alt="Nexus" /></div>
     <div class="spinner"></div>
-  </div>
-
-  <!-- Marketplace Header Preview -->
-
-  <div class="preview-header">
-
-```
-<div class="topbar">
-  <span>Welcome to BlessedNet Wholesale Hub</span>
-  <span>Suppliers | RFQ Center | Orders | Account</span>
-</div>
-
-<div class="brand-row">
-  <div class="brand">BlessedNet</div>
-
-  <div class="search-preview"></div>
-
-  <div class="header-links">
-    Cart | Messages
-  </div>
-</div>
-
-<div class="categories">
-  <span>Electronics</span>
-  <span>Home Appliances</span>
-  <span>Machinery</span>
-  <span>Construction</span>
-  <span>Furniture</span>
-  <span>Fashion</span>
-  <span>Agriculture</span>
-  <span>Automotive</span>
-  <span>Tools</span>
-  <span>Wholesale Deals</span>
-</div>
-```
-
   </div>
 
   <!-- React App Mount Point -->

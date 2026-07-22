@@ -1,15 +1,17 @@
 """
-Admin Routes for BlessedNet Wholesale Hub
+Admin Routes for Nexus Wholesale Hub
 Handles all admin operations: products, orders, users, dashboard
 """
 
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from utils.limiter import limiter
-from models import db, User, Product, ProductDescription, ProductAdCampaign, NegotiationMessage, Order, OrderItem
+from models import db, User, Product, Category, ProductDescription, ProductAdCampaign, NegotiationMessage, Order, OrderItem, HeroBanner, Vendor, VendorEarning
 from datetime import datetime, timedelta
 from sqlalchemy import func
 from utils.security import safe_error_response
+from routes.notifications import create_notification
+from routes.whatsapp_bot import send_message
 from utils.ai_helpers import (
     generate_product_description,
     generate_facebook_ads,
@@ -25,11 +27,22 @@ admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 
 # Uploads configuration
 UPLOAD_FOLDER = 'uploads/products'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
-MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+UPLOAD_FOLDERS = {
+    'products': 'uploads/products',
+    'categories': 'uploads/categories',
+    'banners': 'uploads/banners',
+    'banner_videos': 'uploads/banner_videos',
+    'vendor_logos': 'uploads/vendor_logos',
+    'vendor_banners': 'uploads/vendor_banners',
+}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
+ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'webm', 'mov'}
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB (images)
+MAX_VIDEO_FILE_SIZE = 40 * 1024 * 1024  # 40MB (hero banner video)
 
-# Create upload folder if it doesn't exist
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+# Create upload folders if they don't exist
+for folder in UPLOAD_FOLDERS.values():
+    os.makedirs(folder, exist_ok=True)
 
 
 def is_admin(user_id):
@@ -38,9 +51,9 @@ def is_admin(user_id):
     return user and user.is_admin
 
 
-def allowed_file(filename):
+def allowed_file(filename, extensions=ALLOWED_EXTENSIONS):
     """Check if file is allowed"""
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in extensions
 
 
 # ==================== DASHBOARD ====================
@@ -50,7 +63,7 @@ def allowed_file(filename):
 def get_dashboard():
     """Get dashboard statistics and metrics"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -127,7 +140,7 @@ def get_dashboard():
 def get_admin_products():
     """Get all products for admin (with pagination)"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -173,7 +186,7 @@ def get_admin_products():
 def get_admin_product(product_id):
     """Get single product for editing"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -199,7 +212,7 @@ def get_admin_product(product_id):
 def create_admin_product():
     """Create new product"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -258,7 +271,7 @@ def create_admin_product():
 def update_admin_product(product_id):
     """Update product"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -320,7 +333,7 @@ def update_admin_product(product_id):
 def delete_admin_product(product_id):
     """Delete product"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -349,44 +362,61 @@ def delete_admin_product(product_id):
 @jwt_required()
 @limiter.limit("10 per minute")
 def upload_image():
-    """Upload product image"""
+    """Upload a file (product/category/banner image, or banner video, via the 'type' field)"""
     try:
-        user_id = get_jwt_identity()
-        
-        if not is_admin(user_id):
+        user_id = int(get_jwt_identity())
+
+        upload_type = request.form.get('type', 'products')
+        # Approved vendors upload their own product photos and store branding
+        # from their dashboard — the product-create/update routes already
+        # scope which product a vendor can attach an uploaded image to, so
+        # allowing the upload itself doesn't grant any extra access.
+        is_vendor_upload = upload_type in ('vendor_logos', 'vendor_banners', 'products')
+        is_own_vendor = (
+            is_vendor_upload
+            and Vendor.query.filter_by(user_id=user_id, is_approved=True, is_active=True).first() is not None
+        )
+
+        if not is_admin(user_id) and not is_own_vendor:
             return jsonify({'error': 'Admin access required'}), 403
-        
+
         # Check if file is in request
         if 'file' not in request.files:
             return jsonify({'error': 'No file provided'}), 400
-        
+
         file = request.files['file']
-        
+
         if file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
-        
-        if not allowed_file(file.filename):
-            return jsonify({'error': 'Invalid file type. Allowed: png, jpg, jpeg, gif, webp'}), 400
-        
+        is_video = upload_type == 'banner_videos'
+        extensions = ALLOWED_VIDEO_EXTENSIONS if is_video else ALLOWED_EXTENSIONS
+        max_size = MAX_VIDEO_FILE_SIZE if is_video else MAX_FILE_SIZE
+
+        if not allowed_file(file.filename, extensions):
+            return jsonify({'error': f'Invalid file type. Allowed: {", ".join(sorted(extensions))}'}), 400
+
         # Check file size
         file.seek(0, os.SEEK_END)
         file_size = file.tell()
         file.seek(0)
-        
-        if file_size > MAX_FILE_SIZE:
-            return jsonify({'error': 'File too large. Maximum 5MB'}), 400
-        
+
+        if file_size > max_size:
+            return jsonify({'error': f'File too large. Maximum {max_size // (1024 * 1024)}MB'}), 400
+
+        # Resolve target folder ('products', 'categories', 'banners' or 'banner_videos')
+        folder = UPLOAD_FOLDERS.get(upload_type, UPLOAD_FOLDER)
+
         # Save file
         filename = secure_filename(file.filename)
         timestamp = int(datetime.utcnow().timestamp())
         filename = f"{timestamp}_{filename}"
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        
+        filepath = os.path.join(folder, filename)
+
         file.save(filepath)
-        
+
         # Return file URL
-        file_url = f"/uploads/products/{filename}"
-        
+        file_url = f"/{folder}/{filename}"
+
         return jsonify({
             'message': 'Image uploaded successfully',
             'data': {
@@ -395,10 +425,402 @@ def upload_image():
                 'size': file_size
             }
         }), 200
-    
+
     except Exception as e:
         current_app.logger.exception(e)
         return safe_error_response('Upload failed')
+
+
+# ==================== CATEGORIES ====================
+
+@admin_bp.route('/categories', methods=['GET'])
+@jwt_required()
+def get_admin_categories():
+    """Get all categories for admin management"""
+    try:
+        user_id = int(get_jwt_identity())
+
+        if not is_admin(user_id):
+            return jsonify({'error': 'Admin access required'}), 403
+
+        categories = Category.query.order_by(Category.name).all()
+
+        return jsonify({
+            'message': 'Categories retrieved successfully',
+            'data': [category.to_dict() for category in categories]
+        }), 200
+
+    except Exception as e:
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to retrieve categories')
+
+
+@admin_bp.route('/categories', methods=['POST'])
+@jwt_required()
+@limiter.limit("10 per minute")
+def create_admin_category():
+    """Create a new category"""
+    try:
+        user_id = int(get_jwt_identity())
+
+        if not is_admin(user_id):
+            return jsonify({'error': 'Admin access required'}), 403
+
+        data = request.get_json()
+
+        if not data or not data.get('name'):
+            return jsonify({'error': 'name is required'}), 400
+
+        name = data['name'].strip()
+
+        if Category.query.filter_by(name=name).first():
+            return jsonify({'error': 'Category already exists'}), 409
+
+        category = Category(
+            name=name,
+            image_url=data.get('image_url', '')
+        )
+
+        db.session.add(category)
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Category created successfully',
+            'data': category.to_dict()
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to create category')
+
+
+@admin_bp.route('/categories/<int:category_id>', methods=['PUT'])
+@jwt_required()
+@limiter.limit("10 per minute")
+def update_admin_category(category_id):
+    """Update a category"""
+    try:
+        user_id = int(get_jwt_identity())
+
+        if not is_admin(user_id):
+            return jsonify({'error': 'Admin access required'}), 403
+
+        category = Category.query.get(category_id)
+
+        if not category:
+            return jsonify({'error': 'Category not found'}), 404
+
+        data = request.get_json()
+
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        if 'name' in data:
+            new_name = data['name'].strip()
+            existing = Category.query.filter_by(name=new_name).first()
+            if existing and existing.id != category.id:
+                return jsonify({'error': 'Category already exists'}), 409
+            category.name = new_name
+
+        if 'image_url' in data:
+            category.image_url = data['image_url']
+
+        category.updated_at = datetime.utcnow()
+
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Category updated successfully',
+            'data': category.to_dict()
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to update category')
+
+
+@admin_bp.route('/categories/<int:category_id>', methods=['DELETE'])
+@jwt_required()
+@limiter.limit("10 per minute")
+def delete_admin_category(category_id):
+    """Delete a category"""
+    try:
+        user_id = int(get_jwt_identity())
+
+        if not is_admin(user_id):
+            return jsonify({'error': 'Admin access required'}), 403
+
+        category = Category.query.get(category_id)
+
+        if not category:
+            return jsonify({'error': 'Category not found'}), 404
+
+        db.session.delete(category)
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Category deleted successfully'
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to delete category')
+
+
+# ==================== HERO BANNERS ====================
+
+HERO_BANNER_FIELDS = [
+    'headline', 'subheading', 'badge_text', 'video_url', 'poster_image_url',
+    'cta_shop_text', 'cta_shop_link', 'cta_deals_text', 'cta_deals_link', 'show_watch_video',
+    'flash_sale_label', 'announcement_text', 'announcement_link', 'ticker_text',
+    'countdown_enabled', 'countdown_label', 'overlay_color', 'accent_color',
+    'is_active', 'display_order',
+]
+HERO_BANNER_DATETIME_FIELDS = ['countdown_end', 'starts_at', 'ends_at']
+
+
+def _apply_hero_banner_fields(banner, data):
+    """Assign whitelisted fields from a request payload onto a HeroBanner instance"""
+    for field in HERO_BANNER_FIELDS:
+        if field in data:
+            setattr(banner, field, data[field])
+
+    for field in HERO_BANNER_DATETIME_FIELDS:
+        if field in data:
+            value = data[field]
+            setattr(banner, field, datetime.fromisoformat(value) if value else None)
+
+
+@admin_bp.route('/hero-banners', methods=['GET'])
+@jwt_required()
+def get_admin_hero_banners():
+    """Get all hero banners for admin management"""
+    try:
+        user_id = int(get_jwt_identity())
+
+        if not is_admin(user_id):
+            return jsonify({'error': 'Admin access required'}), 403
+
+        banners = HeroBanner.query.order_by(HeroBanner.display_order.asc(), HeroBanner.updated_at.desc()).all()
+
+        return jsonify({
+            'message': 'Hero banners retrieved successfully',
+            'data': [banner.to_dict() for banner in banners]
+        }), 200
+
+    except Exception as e:
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to retrieve hero banners')
+
+
+@admin_bp.route('/hero-banners', methods=['POST'])
+@jwt_required()
+@limiter.limit("10 per minute")
+def create_admin_hero_banner():
+    """Create a new hero banner"""
+    try:
+        user_id = int(get_jwt_identity())
+
+        if not is_admin(user_id):
+            return jsonify({'error': 'Admin access required'}), 403
+
+        data = request.get_json()
+
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        banner = HeroBanner()
+        _apply_hero_banner_fields(banner, data)
+
+        db.session.add(banner)
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Hero banner created successfully',
+            'data': banner.to_dict()
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to create hero banner')
+
+
+@admin_bp.route('/hero-banners/<int:banner_id>', methods=['PUT'])
+@jwt_required()
+@limiter.limit("10 per minute")
+def update_admin_hero_banner(banner_id):
+    """Update a hero banner"""
+    try:
+        user_id = int(get_jwt_identity())
+
+        if not is_admin(user_id):
+            return jsonify({'error': 'Admin access required'}), 403
+
+        banner = HeroBanner.query.get(banner_id)
+
+        if not banner:
+            return jsonify({'error': 'Hero banner not found'}), 404
+
+        data = request.get_json()
+
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        _apply_hero_banner_fields(banner, data)
+        banner.updated_at = datetime.utcnow()
+
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Hero banner updated successfully',
+            'data': banner.to_dict()
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to update hero banner')
+
+
+@admin_bp.route('/hero-banners/<int:banner_id>', methods=['DELETE'])
+@jwt_required()
+@limiter.limit("10 per minute")
+def delete_admin_hero_banner(banner_id):
+    """Delete a hero banner"""
+    try:
+        user_id = int(get_jwt_identity())
+
+        if not is_admin(user_id):
+            return jsonify({'error': 'Admin access required'}), 403
+
+        banner = HeroBanner.query.get(banner_id)
+
+        if not banner:
+            return jsonify({'error': 'Hero banner not found'}), 404
+
+        db.session.delete(banner)
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Hero banner deleted successfully'
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to delete hero banner')
+
+
+# ==================== VENDORS ====================
+
+VENDOR_ADMIN_FIELDS = ['store_name', 'is_approved', 'is_active', 'commission_percent']
+
+
+@admin_bp.route('/vendors', methods=['GET'])
+@jwt_required()
+def get_admin_vendors():
+    """List all vendor applications/profiles"""
+    try:
+        user_id = int(get_jwt_identity())
+        if not is_admin(user_id):
+            return jsonify({'error': 'Admin access required'}), 403
+
+        vendors = Vendor.query.order_by(Vendor.created_at.desc()).all()
+
+        return jsonify({
+            'message': 'Vendors retrieved successfully',
+            'data': [v.to_dict(include_contact=True) for v in vendors]
+        }), 200
+
+    except Exception as e:
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to retrieve vendors')
+
+
+@admin_bp.route('/vendors/<int:vendor_id>', methods=['PUT'])
+@jwt_required()
+@limiter.limit("10 per minute")
+def update_admin_vendor(vendor_id):
+    """Approve/reject/deactivate a vendor, or set their commission rate"""
+    try:
+        user_id = int(get_jwt_identity())
+        if not is_admin(user_id):
+            return jsonify({'error': 'Admin access required'}), 403
+
+        vendor = Vendor.query.get(vendor_id)
+        if not vendor:
+            return jsonify({'error': 'Vendor not found'}), 404
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        for field in VENDOR_ADMIN_FIELDS:
+            if field in data:
+                setattr(vendor, field, data[field])
+
+        vendor.updated_at = datetime.utcnow()
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Vendor updated successfully',
+            'data': vendor.to_dict(include_contact=True)
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to update vendor')
+
+
+@admin_bp.route('/vendor-earnings', methods=['GET'])
+@jwt_required()
+def get_admin_vendor_earnings():
+    """List all vendor commission-ledger entries (read-only, for reconciliation)"""
+    try:
+        user_id = int(get_jwt_identity())
+        if not is_admin(user_id):
+            return jsonify({'error': 'Admin access required'}), 403
+
+        earnings = VendorEarning.query.order_by(VendorEarning.created_at.desc()).all()
+
+        return jsonify({
+            'message': 'Vendor earnings retrieved successfully',
+            'data': [e.to_dict() for e in earnings]
+        }), 200
+
+    except Exception as e:
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to retrieve vendor earnings')
+
+
+@admin_bp.route('/vendor-earnings/<int:earning_id>/mark-paid', methods=['PUT'])
+@jwt_required()
+@limiter.limit("10 per minute")
+def mark_vendor_earning_paid(earning_id):
+    """Mark a vendor earning row as paid out (manual reconciliation, no automated transfer)"""
+    try:
+        user_id = int(get_jwt_identity())
+        if not is_admin(user_id):
+            return jsonify({'error': 'Admin access required'}), 403
+
+        earning = VendorEarning.query.get(earning_id)
+        if not earning:
+            return jsonify({'error': 'Vendor earning not found'}), 404
+
+        earning.payout_status = 'paid'
+        db.session.commit()
+
+        return jsonify({'message': 'Marked as paid', 'data': earning.to_dict()}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to update vendor earning')
 
 
 # ==================== ORDERS ====================
@@ -408,7 +830,7 @@ def upload_image():
 def get_admin_orders():
     """Get all orders"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -472,7 +894,7 @@ def get_admin_orders():
 def get_admin_order(order_id):
     """Get single order details"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -500,6 +922,7 @@ def get_admin_order(order_id):
             'shipping_cost': order.shipping_cost,
             'delivery_fee': order.delivery_fee,
             'notes': order.notes,
+            'created_at': order.created_at.isoformat(),
             'items': [
                 {
                     'id': item.id,
@@ -530,7 +953,7 @@ def get_admin_order(order_id):
 def update_order_status(order_id):
     """Update order status"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -553,9 +976,32 @@ def update_order_status(order_id):
         
         order.status = new_status
         order.updated_at = datetime.utcnow()
-        
+
+        try:
+            create_notification(
+                user_id=order.user_id,
+                title=f'Order #{order.order_number} is now {new_status}',
+                message=f'Your order #{order.order_number} status changed to "{new_status}".',
+                link=f'/orders/{order.id}',
+                type='order_status',
+            )
+        except Exception:
+            current_app.logger.exception('Failed to create order-status notification')
+
+        if order.shipping_phone:
+            try:
+                sent = send_message(
+                    order.shipping_phone,
+                    f'Hi! Your Nexus order #{order.order_number} is now "{new_status}". '
+                    f'Track it here: {os.getenv("FRONTEND_URL", "")}/orders/{order.id}'
+                )
+                if sent:
+                    order.whatsapp_notification_sent = True
+            except Exception:
+                current_app.logger.exception('Failed to send WhatsApp order-status message')
+
         db.session.commit()
-        
+
         return jsonify({
             'message': 'Order status updated successfully',
             'data': {
@@ -564,7 +1010,7 @@ def update_order_status(order_id):
                 'updated_at': order.updated_at.isoformat()
             }
         }), 200
-    
+
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception(e)
@@ -577,7 +1023,7 @@ def update_order_status(order_id):
 def generate_product_description_route(product_id):
     """Generate and save AI product description for a product"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
 
@@ -635,7 +1081,7 @@ def generate_product_description_route(product_id):
 def generate_product_ads_route(product_id):
     """Generate Facebook ad variations for a product"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
 
@@ -687,7 +1133,7 @@ def generate_product_ads_route(product_id):
 def get_trending_products_route():
     """Get today's top winning products"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
 
@@ -711,7 +1157,7 @@ def get_trending_products_route():
 def generate_negotiation_message_route():
     """Generate supplier negotiation messages"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
 
@@ -753,7 +1199,7 @@ def generate_negotiation_message_route():
 def forward_order_to_supplier_route(order_id):
     """Prepare supplier forwarding messages for dropshipping"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
 
@@ -798,7 +1244,7 @@ def forward_order_to_supplier_route(order_id):
 def get_admin_users():
     """Get all users"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -859,7 +1305,7 @@ def get_admin_users():
 def toggle_admin(user_id):
     """Toggle admin status for user"""
     try:
-        current_admin = get_jwt_identity()
+        current_admin = int(get_jwt_identity())
         
         if not is_admin(current_admin):
             return jsonify({'error': 'Admin access required'}), 403
@@ -894,7 +1340,7 @@ def toggle_admin(user_id):
 def toggle_active(user_id):
     """Toggle active status for user"""
     try:
-        current_admin = get_jwt_identity()
+        current_admin = int(get_jwt_identity())
         
         if not is_admin(current_admin):
             return jsonify({'error': 'Admin access required'}), 403

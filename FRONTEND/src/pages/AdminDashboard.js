@@ -6,7 +6,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { FiTrendingUp, FiBox, FiShoppingCart, FiUsers, FiAlertCircle } from 'react-icons/fi';
-import AdminLayout from '../components/AdminLayout';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -38,21 +37,17 @@ const AdminDashboard = () => {
 
   if (loading) {
     return (
-      <AdminLayout>
-        <div className="text-center py-12">
-          <p className="text-gray-600">Loading dashboard...</p>
-        </div>
-      </AdminLayout>
+      <div className="text-center py-12">
+        <p className="text-gray-600">Loading dashboard...</p>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <AdminLayout>
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-          ❌ {error}
-        </div>
-      </AdminLayout>
+      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+        ❌ {error}
+      </div>
     );
   }
 
@@ -75,12 +70,11 @@ const AdminDashboard = () => {
   );
 
   return (
-    <AdminLayout>
       <div className="space-y-6">
         {/* Page Title */}
         <div>
           <h2 className="text-3xl font-bold text-gray-900">Dashboard</h2>
-          <p className="text-gray-600 mt-1">Welcome to BlessedNet Admin Panel</p>
+          <p className="text-gray-600 mt-1">Welcome to Nexus Admin Panel</p>
         </div>
 
         {/* Stats Grid */}
@@ -247,7 +241,6 @@ const AdminDashboard = () => {
           </div>
         </div>
       </div>
-    </AdminLayout>
   );
 };
 

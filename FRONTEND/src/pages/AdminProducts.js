@@ -5,9 +5,9 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { automationAPI } from '../api';
+import { automationAPI, categoriesAPI } from '../api';
 import { FiEdit2, FiTrash2, FiPlus, FiSearch, FiImage } from 'react-icons/fi';
-import AdminLayout from '../components/AdminLayout';
+import PlaceholderImage from '../components/ui/PlaceholderImage';
 import Swal from 'sweetalert2';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
@@ -21,6 +21,7 @@ const AdminProducts = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(null);
+  const [categoryNames, setCategoryNames] = useState([]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -39,6 +40,12 @@ const AdminProducts = () => {
   useEffect(() => {
     fetchProducts();
   }, [page, search]);
+
+  useEffect(() => {
+    categoriesAPI.getAll()
+      .then((res) => setCategoryNames(res.data.data.map((c) => c.name)))
+      .catch(() => {});
+  }, []);
 
   const fetchProducts = async () => {
     try {
@@ -199,7 +206,6 @@ const AdminProducts = () => {
   };
 
   return (
-    <AdminLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -252,11 +258,17 @@ const AdminProducts = () => {
                 <label className="block text-sm font-semibold mb-2">Category *</label>
                 <input
                   type="text"
+                  list="category-options"
                   value={formData.category}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
                   required
                 />
+                <datalist id="category-options">
+                  {categoryNames.map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
               </div>
 
               {/* Price */}
@@ -337,7 +349,7 @@ const AdminProducts = () => {
                   )}
                 </div>
                 {formData.image_url && (
-                  <img
+                  <PlaceholderImage
                     src={formData.image_url}
                     alt="Product"
                     className="w-20 h-20 object-cover rounded-lg"
@@ -418,7 +430,7 @@ const AdminProducts = () => {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           {product.image_url && (
-                            <img
+                            <PlaceholderImage
                               src={product.image_url}
                               alt={product.name}
                               className="w-10 h-10 object-cover rounded"
@@ -501,7 +513,6 @@ const AdminProducts = () => {
           </div>
         )}
       </div>
-    </AdminLayout>
   );
 };
 

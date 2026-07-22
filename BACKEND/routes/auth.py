@@ -1,5 +1,5 @@
 """
-Authentication Routes for BlessedNet Wholesale Hub
+Authentication Routes for Nexus Wholesale Hub
 Handles user registration, login, and JWT token management
 FIXED: Added current_app import, improved error handling
 """
@@ -7,10 +7,16 @@ FIXED: Added current_app import, improved error handling
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from utils.limiter import limiter
-from datetime import datetime
+from datetime import datetime, timedelta
 from models import db, User
 from utils.security import safe_error_response
+from utils.email_helper import send_email
+import hashlib
+import os
 import re
+import secrets
+
+RESET_TOKEN_TTL_MINUTES = 60
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
@@ -103,7 +109,7 @@ def register():
         db.session.commit()
         
         # Create access token
-        access_token = create_access_token(identity=user.id)
+        access_token = create_access_token(identity=str(user.id))
         
         return jsonify({
             'message': 'User registered successfully',
@@ -151,7 +157,7 @@ def login():
             return jsonify({'error': 'Account is inactive'}), 403
         
         # Create access token (FIXED: Token expires in 24 hours instead of 30 days)
-        access_token = create_access_token(identity=user.id)
+        access_token = create_access_token(identity=str(user.id))
         
         return jsonify({
             'message': 'Login successful',
@@ -169,7 +175,7 @@ def login():
 def get_profile():
     """Get current user profile"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         user = User.query.get(user_id)
         
         if not user:
@@ -204,7 +210,7 @@ def update_profile():
     }
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         user = User.query.get(user_id)
         
         if not user:
@@ -249,7 +255,7 @@ def change_password():
     }
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         user = User.query.get(user_id)
         
         if not user:
@@ -285,6 +291,99 @@ def change_password():
         db.session.rollback()
         current_app.logger.exception(e)
         return safe_error_response('Failed to change password')
+
+
+@auth_bp.route('/forgot-password', methods=['POST'])
+@limiter.limit("5 per minute")
+def forgot_password():
+    """
+    Request a password reset link.
+
+    Request body: { "email": "john@example.com" }
+
+    Always returns a generic success message regardless of whether the email
+    is registered, so this can't be used to enumerate accounts.
+    """
+    try:
+        data = request.get_json()
+        email = (data or {}).get('email', '').strip()
+        generic_response = jsonify({
+            'message': 'If that email is registered, a reset link has been sent.'
+        }), 200
+
+        if not email:
+            return jsonify({'error': 'email is required'}), 400
+
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            return generic_response
+
+        raw_token = secrets.token_urlsafe(32)
+        user.reset_token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+        user.reset_token_expires = datetime.utcnow() + timedelta(minutes=RESET_TOKEN_TTL_MINUTES)
+        db.session.commit()
+
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
+        reset_link = f"{frontend_url}/reset-password?token={raw_token}"
+        send_email(
+            user.email,
+            'Reset your Nexus password',
+            f"Hi {user.full_name or user.username},\n\n"
+            f"Click the link below to reset your password. This link expires in "
+            f"{RESET_TOKEN_TTL_MINUTES} minutes and can only be used once.\n\n"
+            f"{reset_link}\n\n"
+            f"If you didn't request this, you can safely ignore this email."
+        )
+
+        return generic_response
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to process request')
+
+
+@auth_bp.route('/reset-password', methods=['POST'])
+@limiter.limit("10 per minute")
+def reset_password():
+    """
+    Complete a password reset.
+
+    Request body: { "token": "...", "new_password": "..." }
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        token = data.get('token', '').strip()
+        new_password = data.get('new_password', '')
+
+        if not token or not new_password:
+            return jsonify({'error': 'token and new_password are required'}), 400
+
+        is_valid, message = validate_password_strength(new_password)
+        if not is_valid:
+            return jsonify({'error': message}), 400
+
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        user = User.query.filter_by(reset_token_hash=token_hash).first()
+
+        if not user or not user.reset_token_expires or user.reset_token_expires < datetime.utcnow():
+            return jsonify({'error': 'This reset link is invalid or has expired'}), 400
+
+        user.set_password(new_password)
+        user.reset_token_hash = None
+        user.reset_token_expires = None
+        user.updated_at = datetime.utcnow()
+        db.session.commit()
+
+        return jsonify({'message': 'Password reset successfully — you can now log in'}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to reset password')
 
 
 @auth_bp.route('/logout', methods=['POST'])

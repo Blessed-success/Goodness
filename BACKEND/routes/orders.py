@@ -1,5 +1,5 @@
 """
-Order Routes for BlessedNet Wholesale Hub
+Order Routes for Nexus Wholesale Hub
 Handles order creation, management, and tracking
 """
 
@@ -10,7 +10,10 @@ from models import db, Order, OrderItem, Cart, CartItem, Product, User, Region
 from datetime import datetime
 from utils.security import safe_error_response
 from utils.location_validation import is_user_location_active
+from routes.notifications import create_notification
+from routes.whatsapp_bot import send_message
 import uuid
+import os
 
 orders_bp = Blueprint('orders', __name__, url_prefix='/api/orders')
 
@@ -32,7 +35,7 @@ def get_user_orders():
     - status: filter by status
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         page = request.args.get('page', 1, type=int)
         limit = min(int(request.args.get('limit', 10)), 50)
         status = request.args.get('status', '').strip()
@@ -72,7 +75,7 @@ def get_user_orders():
 def get_order(order_id):
     """Get specific order"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         order = Order.query.get(order_id)
         
         if not order:
@@ -97,19 +100,19 @@ def get_order(order_id):
 @limiter.limit("5 per minute")
 def create_order():
     """
-    Create order from cart
-    
+    Create order from cart. Delivery/shipping cost is never accepted from the
+    client — it's always the admin-configured fee for the user's region.
+
     Request body:
     {
         "shipping_address": "123 Main St",
         "shipping_city": "Accra",
         "shipping_phone": "+233123456789",
-        "shipping_cost": 5.00,
         "notes": "Please deliver in the morning"
     }
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         # Check if user's location is active
         is_active, region_name, city_name, reason = is_user_location_active(user_id)
@@ -133,16 +136,12 @@ def create_order():
             if not data.get(field):
                 return jsonify({'error': f'{field} is required'}), 400
 
-        # Determine delivery fee from user region if available
-        shipping_cost = float(data.get('shipping_cost', 0))
+        # Delivery fee is always the admin-configured fee for the user's
+        # region — is_user_location_active() above already guarantees the
+        # user has an active region/city, so this is always resolvable.
         user = User.query.get(user_id)
-        if user and user.region_id:
-            region = Region.query.get(user.region_id)
-            if region and region.delivery_fee is not None:
-                shipping_cost = float(region.delivery_fee)
-
-        if shipping_cost < 0:
-            shipping_cost = 0.0
+        region = Region.query.get(user.region_id) if user and user.region_id else None
+        shipping_cost = float(region.delivery_fee) if region and region.delivery_fee is not None else 0.0
 
         # Create order and reserve items until payment is verified
         order = Order(
@@ -196,7 +195,7 @@ def create_order():
 def cancel_order(order_id):
     """Cancel an order"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         order = Order.query.get(order_id)
         
         if not order:
@@ -232,7 +231,7 @@ def cancel_order(order_id):
 def get_all_orders():
     """Get all orders (admin only)"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         user = User.query.get(user_id)
         
         if not user or not user.is_admin:
@@ -283,7 +282,7 @@ def update_order_status(order_id):
     }
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         user = User.query.get(user_id)
         
         if not user or not user.is_admin:
@@ -317,14 +316,37 @@ def update_order_status(order_id):
         
         if 'notes' in data:
             order.notes = data['notes'].strip() if isinstance(data['notes'], str) else order.notes
-        
+
+        try:
+            create_notification(
+                user_id=order.user_id,
+                title=f'Order #{order.order_number} is now {status}',
+                message=f'Your order #{order.order_number} status changed to "{status}".',
+                link=f'/orders/{order.id}',
+                type='order_status',
+            )
+        except Exception:
+            current_app.logger.exception('Failed to create order-status notification')
+
+        if order.shipping_phone:
+            try:
+                sent = send_message(
+                    order.shipping_phone,
+                    f'Hi! Your Nexus order #{order.order_number} is now "{status}". '
+                    f'Track it here: {os.getenv("FRONTEND_URL", "")}/orders/{order.id}'
+                )
+                if sent:
+                    order.whatsapp_notification_sent = True
+            except Exception:
+                current_app.logger.exception('Failed to send WhatsApp order-status message')
+
         db.session.commit()
-        
+
         return jsonify({
             'message': 'Order status updated successfully',
             'data': order.to_dict()
         }), 200
-    
+
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception(e)

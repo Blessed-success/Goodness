@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import AdminLayout from '../components/AdminLayout';
 import { automationAPI } from '../api';
 import axios from 'axios';
 
@@ -53,7 +52,6 @@ const AdminAdsPage = () => {
   };
 
   return (
-    <AdminLayout>
       <div className="space-y-6">
         <div>
           <h2 className="text-3xl font-bold text-gray-900">Facebook Ads Generator</h2>
@@ -107,7 +105,6 @@ const AdminAdsPage = () => {
           </div>
         </div>
       </div>
-    </AdminLayout>
   );
 };
 

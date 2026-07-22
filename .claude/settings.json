@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./venv/Scripts/python.exe -m pip install --upgrade pip -q)",
+      "Bash(./venv/Scripts/pip.exe install *)",
+      "Bash(npm install *)",
+      "Bash(./venv/Scripts/python.exe app.py)",
+      "Bash(PYTHONIOENCODING=utf-8 ./venv/Scripts/python.exe app.py)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5000/api/products)",
+      "Bash(netstat -ano)",
+      "Bash(curl -s http://localhost:5000/api/products)",
+      "Bash(curl -s http://localhost:5000/api/products/categories)",
+      "Bash(BROWSER=none npm start)",
+      "Bash(curl -s -o /dev/null -w \"Frontend HTTP status: %{http_code}\\\\n\" http://localhost:3000)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(PYTHONIOENCODING=utf-8 PORT=5000 ./venv/Scripts/gunicorn.exe --bind 0.0.0.0:5000 app:app)",
+      "Bash(curl -s -o /dev/null -w \"products: %{http_code}\\\\n\" http://localhost:5000/api/products)",
+      "Bash(curl -s -o /dev/null -w \"categories: %{http_code}\\\\n\" http://localhost:5000/api/products/categories)",
+      "Bash(curl -s -o /dev/null -w \"health: %{http_code}\\\\n\" http://localhost:5000/health)",
+      "Bash(PYTHONIOENCODING=utf-8 ./venv/Scripts/python.exe test_import.py)",
+      "Bash(tasklist)",
+      "Bash(taskkill //PID 14148 //F)",
+      "Bash(PGPASSWORD='nanaba123@_#' \"/c/Program Files/PostgreSQL/18/bin/psql\" -U postgres -h 127.0.0.1 -d blessednet -c \"DELETE FROM users WHERE email='admin@besthub.com';\")",
+      "Bash(curl -s -X POST http://localhost:5000/api/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"prolificever360@gmail.com\",\"password\":\"Greatness@360\"}' -w \"\\\\nstatus: %{http_code}\\\\n\")",
+      "Bash(curl -s http://localhost:3000/static/js/bundle.js)",
+      "Bash(taskkill //PID 16196 //F)",
+      "Bash(PGPASSWORD='nanaba123@_#' '/c/Program Files/PostgreSQL/18/bin/psql' -U postgres -h 127.0.0.1 -d blessednet -c ' *)"
+    ]
+  }
+}

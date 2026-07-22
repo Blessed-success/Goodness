@@ -15,6 +15,7 @@ const AdminLocations = () => {
   const [error, setError] = useState(null);
   const [expandedRegion, setExpandedRegion] = useState(null);
   const [updating, setUpdating] = useState(false);
+  const [feeDrafts, setFeeDrafts] = useState({});
 
   useEffect(() => {
     fetchRegions();
@@ -40,6 +41,9 @@ const AdminLocations = () => {
       }
 
       setRegions(data.data || []);
+      setFeeDrafts(
+        Object.fromEntries((data.data || []).map((region) => [region.id, region.delivery_fee]))
+      );
     } catch (err) {
       setError(err.message);
       console.error('Error fetching regions:', err);
@@ -108,6 +112,47 @@ const AdminLocations = () => {
     }
   };
 
+  const saveDeliveryFee = async (regionId) => {
+    const draft = feeDrafts[regionId];
+    const deliveryFee = Number(draft);
+
+    if (draft === '' || Number.isNaN(deliveryFee) || deliveryFee < 0) {
+      setError('Delivery fee must be a valid, non-negative number');
+      return;
+    }
+
+    try {
+      setUpdating(true);
+      const token = localStorage.getItem('access_token');
+
+      const response = await fetch(`${API_BASE_URL}/location/admin/regions/${regionId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ delivery_fee: deliveryFee })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Failed to update delivery fee');
+        return;
+      }
+
+      setRegions(regions.map((region) =>
+        region.id === regionId ? { ...region, delivery_fee: data.data.delivery_fee } : region
+      ));
+      setFeeDrafts((prev) => ({ ...prev, [regionId]: data.data.delivery_fee }));
+    } catch (err) {
+      setError(err.message);
+      console.error('Error updating delivery fee:', err);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const toggleCity = async (cityId, currentStatus) => {
     try {
       setUpdating(true);
@@ -164,7 +209,7 @@ const AdminLocations = () => {
       <div className="admin-locations-header">
         <h2>🌍 Location-Based Access Control</h2>
         <p className="description">
-          Control which regions and cities in Ghana can access and purchase from BlessedNet
+          Control which regions and cities in Ghana can access and purchase from Nexus
         </p>
       </div>
 
@@ -228,6 +273,27 @@ const AdminLocations = () => {
                   {region.is_active ? '✓ Active' : '✗ Inactive'}
                 </span>
               </div>
+            </div>
+
+            <div className="region-fee" onClick={(e) => e.stopPropagation()}>
+              <label htmlFor={`fee-${region.id}`}>Delivery Fee (GHS)</label>
+              <input
+                id={`fee-${region.id}`}
+                type="number"
+                min="0"
+                step="0.01"
+                value={feeDrafts[region.id] ?? ''}
+                onChange={(e) => setFeeDrafts((prev) => ({ ...prev, [region.id]: e.target.value }))}
+                disabled={updating}
+              />
+              <button
+                type="button"
+                className="btn-confirm"
+                onClick={() => saveDeliveryFee(region.id)}
+                disabled={updating || Number(feeDrafts[region.id]) === region.delivery_fee}
+              >
+                Save
+              </button>
             </div>
 
             {expandedRegion === region.id && region.cities && (

@@ -4,26 +4,37 @@
  */
 
 import React, { useState } from 'react';
-import { FiShoppingCart, FiHeart } from 'react-icons/fi';
+import { Link } from 'react-router-dom';
+import { FiShoppingCart, FiHeart, FiMessageCircle, FiStar, FiEye, FiRepeat } from 'react-icons/fi';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { useWishlist } from '../context/WishlistContext';
+import { useCompare } from '../context/CompareContext';
 import { paymentAPI } from '../api';
+import Card from './ui/Card';
+import Badge from './ui/Badge';
+import Button from './ui/Button';
+import PlaceholderImage from './ui/PlaceholderImage';
+import { toast } from './ui/Toast';
+import QuickViewModal from './QuickViewModal';
 
 const ProductCard = ({ product, isBestDeal = false }) => {
   const { addItem } = useCart();
-  const { user } = useAuth();
-  const [liked, setLiked] = useState(false);
+  const { user, isAuthenticated } = useAuth();
+  const { isWishlisted, toggleItem } = useWishlist();
+  const { isComparing, toggleCompare, isFull } = useCompare();
   const [loading, setLoading] = useState(false);
   const [quantity, setQuantity] = useState(1);
+  const [quickViewOpen, setQuickViewOpen] = useState(false);
 
   const handleAddToCart = async () => {
     try {
       setLoading(true);
       await addItem(product.id, quantity);
-      alert('✅ Product added to cart!');
+      toast.success('Added to cart');
       setQuantity(1);
     } catch (error) {
-      alert(`❌ ${error.message}`);
+      toast.error(error.message);
     } finally {
       setLoading(false);
     }
@@ -39,114 +50,143 @@ const ProductCard = ({ product, isBestDeal = false }) => {
         customer_phone: user?.phone || '',
       });
 
-      // Open WhatsApp link
       window.open(response.data.data.whatsapp_url, '_blank');
       setQuantity(1);
     } catch (error) {
-      alert(`❌ Failed to open WhatsApp: ${error.message}`);
+      toast.error(`Failed to open WhatsApp: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleToggleWishlist = async () => {
+    if (!isAuthenticated) {
+      toast.error('Please log in to save items to your wishlist');
+      return;
+    }
+    try {
+      await toggleItem(product.id);
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const handleToggleCompare = () => {
+    if (!isComparing(product.id) && isFull) {
+      toast.error('You can compare up to 4 products at a time');
+      return;
+    }
+    toggleCompare(product.id);
+  };
+
+  const liked = isWishlisted(product.id);
+  const comparing = isComparing(product.id);
   const discountedPrice = product.discounted_price || product.price;
   const savings = ((product.price - discountedPrice) / product.price * 100).toFixed(0);
 
   return (
-    <div className="bg-white rounded-lg shadow hover:shadow-lg transition overflow-hidden">
+    <Card hoverable padded={false} className="group overflow-hidden">
       {/* Product Image */}
-      <div className="relative bg-gray-200 h-48 overflow-hidden">
-        <img
-          src={product.image_url || '🖼️'}
+      <div className="relative h-48 overflow-hidden bg-gray-100">
+        <PlaceholderImage
+          src={product.image_url}
           alt={product.name}
-          className="w-full h-full object-cover hover:scale-110 transition duration-300"
+          className="h-full w-full object-cover transition duration-300 hover:scale-105"
         />
 
         {/* Badges */}
-        <div className="absolute top-3 left-3 space-y-2">
-          {isBestDeal && (
-            <div className="bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-bold animate-pulse">
-              🏆 Best Deal
-            </div>
-          )}
-          {product.is_flash_sale && (
-            <div className="bg-red-500 text-white px-3 py-1 rounded-full text-sm font-bold">
-              ⚡ Flash Sale
-            </div>
-          )}
-          {product.is_trending && (
-            <div className="bg-orange-500 text-white px-3 py-1 rounded-full text-sm font-bold">
-              🔥 Trending
-            </div>
-          )}
-          {product.discount_percent > 0 && (
-            <div className="bg-green-500 text-white px-3 py-1 rounded-full text-sm font-bold">
-              -{product.discount_percent}%
-            </div>
-          )}
+        <div className="absolute left-3 top-3 flex flex-col gap-1.5">
+          {isBestDeal && <Badge variant="dark">Best Deal</Badge>}
+          {product.is_flash_sale && <Badge variant="danger">Flash Sale</Badge>}
+          {product.is_trending && <Badge variant="warning">Trending</Badge>}
+          {product.discount_percent > 0 && <Badge variant="success">-{product.discount_percent}%</Badge>}
         </div>
 
-        {/* Like Button */}
+        {/* Wishlist + Compare Buttons */}
+        <div className="absolute right-3 top-3 flex flex-col gap-1.5">
+          <button
+            onClick={handleToggleWishlist}
+            title="Save to wishlist"
+            className="rounded-full bg-white/90 p-2 shadow-sm hover:bg-white transition-colors"
+          >
+            <FiHeart size={16} fill={liked ? '#ef4444' : 'none'} color={liked ? '#ef4444' : '#6b7280'} />
+          </button>
+          <button
+            onClick={handleToggleCompare}
+            title="Add to compare"
+            className={`rounded-full p-2 shadow-sm transition-colors ${
+              comparing ? 'bg-primary-600 text-white' : 'bg-white/90 text-gray-600 hover:bg-white'
+            }`}
+          >
+            <FiRepeat size={16} />
+          </button>
+        </div>
+
+        {/* Quick View */}
         <button
-          onClick={() => setLiked(!liked)}
-          className="absolute top-3 right-3 bg-white rounded-full p-2 hover:bg-red-50 transition"
+          onClick={() => setQuickViewOpen(true)}
+          className="absolute inset-x-3 bottom-3 flex translate-y-2 items-center justify-center gap-1.5 rounded-lg bg-white/95 py-2 text-xs font-semibold text-primary-800 opacity-0 shadow-sm transition-all duration-200 hover:bg-white group-hover:translate-y-0 group-hover:opacity-100"
         >
-          <FiHeart size={20} fill={liked ? 'red' : 'none'} color={liked ? 'red' : 'currentColor'} />
+          <FiEye size={14} /> Quick View
         </button>
       </div>
 
       {/* Product Info */}
       <div className="p-4">
-        {/* Category */}
-        <p className="text-xs text-gray-500 uppercase font-semibold mb-2">
+        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
           {product.category}
         </p>
 
-        {/* Product Name */}
-        <h3 className="font-bold text-lg mb-2 line-clamp-2 hover:text-blue-600">
+        {product.vendor_id && (
+          <Link
+            to={`/store/${product.vendor_slug}`}
+            onClick={(e) => e.stopPropagation()}
+            className="mb-1.5 block text-xs font-medium text-primary-600 hover:underline"
+          >
+            Sold by {product.vendor_name}
+          </Link>
+        )}
+
+        <h3 className="mb-2 line-clamp-2 font-semibold text-gray-900 hover:text-primary-600">
           {product.name}
         </h3>
 
-        {/* Rating */}
-        <div className="flex items-center mb-3">
-          <span className="text-yellow-400">⭐ {product.rating}</span>
-          <span className="text-gray-500 text-sm ml-2">({product.rating} stars)</span>
+        <div className="mb-3 flex items-center gap-1 text-sm">
+          <FiStar className="text-amber-400" fill="#fbbf24" size={14} />
+          <span className="font-medium text-gray-700">{product.rating}</span>
         </div>
 
-        {/* Price */}
         <div className="mb-3">
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-blue-600">GHS {discountedPrice.toFixed(2)}</span>
+            <span className="text-xl font-bold text-gray-900">GHS {discountedPrice.toFixed(2)}</span>
             {product.discount_percent > 0 && (
-              <span className="text-lg text-gray-400 line-through">GHS {product.price.toFixed(2)}</span>
+              <span className="text-sm text-gray-400 line-through">GHS {product.price.toFixed(2)}</span>
             )}
           </div>
           {product.discount_percent > 0 && (
-            <p className="text-sm text-green-600 font-semibold">
+            <p className="text-sm font-medium text-green-600">
               Save GHS {(product.price - discountedPrice).toFixed(2)} ({savings}%)
             </p>
           )}
         </div>
 
-        {/* Stock Status */}
         <div className="mb-3">
           {product.stock_quantity > 10 ? (
-            <span className="text-green-600 text-sm font-semibold">✅ In Stock</span>
+            <span className="text-sm font-medium text-green-600">In Stock</span>
           ) : product.stock_quantity > 0 ? (
-            <span className="text-orange-600 text-sm font-semibold">⚠️ Only {product.stock_quantity} left</span>
+            <span className="text-sm font-medium text-amber-600">Only {product.stock_quantity} left</span>
           ) : (
-            <span className="text-red-600 text-sm font-semibold">❌ Out of Stock</span>
+            <span className="text-sm font-medium text-red-500">Out of Stock</span>
           )}
         </div>
 
-        {/* Quantity Selector */}
-        <div className="flex items-center gap-2 mb-3">
+        <div className="mb-3 flex items-center gap-2">
           <button
             onClick={() => setQuantity(Math.max(1, quantity - 1))}
             disabled={product.stock_quantity === 0}
-            className="border px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-50"
+            className="rounded-lg border border-gray-200 px-2.5 py-1 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
           >
-            −
+            &minus;
           </button>
           <input
             type="number"
@@ -154,42 +194,47 @@ const ProductCard = ({ product, isBestDeal = false }) => {
             onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
             min="1"
             max={product.stock_quantity}
-            className="w-12 text-center border px-2 py-1 rounded"
+            className="w-12 rounded-lg border border-gray-200 py-1 text-center"
             disabled={product.stock_quantity === 0}
           />
           <button
             onClick={() => setQuantity(Math.min(product.stock_quantity, quantity + 1))}
             disabled={product.stock_quantity === 0}
-            className="border px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-50"
+            className="rounded-lg border border-gray-200 px-2.5 py-1 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
           >
             +
           </button>
         </div>
 
-        {/* Action Buttons */}
         <div className="space-y-2">
-          {/* Add to Cart Button */}
-          <button
+          <Button
             onClick={handleAddToCart}
-            disabled={product.stock_quantity === 0 || loading}
-            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold"
+            disabled={product.stock_quantity === 0}
+            loading={loading}
+            fullWidth
           >
-            <FiShoppingCart />
-            {loading ? 'Adding...' : 'Add to Cart'}
-          </button>
+            <FiShoppingCart size={16} />
+            Add to Cart
+          </Button>
 
-          {/* WhatsApp Order Button */}
-          <button
+          <Button
+            variant="outline"
             onClick={handleWhatsAppOrder}
             disabled={loading}
-            className="w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 transition disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+            fullWidth
+            className="border-green-200 text-green-700 hover:bg-green-50"
             title="Send product details to WhatsApp for direct quote"
           >
-            💬 WhatsApp Order
-          </button>
+            <FiMessageCircle size={16} />
+            WhatsApp Order
+          </Button>
         </div>
       </div>
-    </div>
+
+      {quickViewOpen && (
+        <QuickViewModal product={product} onClose={() => setQuickViewOpen(false)} />
+      )}
+    </Card>
   );
 };
 

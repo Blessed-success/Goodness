@@ -23,7 +23,7 @@ def is_admin(user_id):
 def get_competitor_tracking():
     """Get all competitor price tracking entries"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
 
@@ -64,7 +64,7 @@ def get_competitor_tracking():
 def add_competitor_tracking():
     """Add a new competitor product to track"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
 
@@ -111,7 +111,7 @@ def add_competitor_tracking():
 def update_competitor_tracking(tracking_id):
     """Update competitor tracking settings"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
 
@@ -149,7 +149,7 @@ def update_competitor_tracking(tracking_id):
 def delete_competitor_tracking(tracking_id):
     """Delete competitor tracking"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
 
@@ -174,7 +174,7 @@ def delete_competitor_tracking(tracking_id):
 def update_competitor_price(tracking_id):
     """Manually update competitor price"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
 
@@ -199,7 +199,7 @@ def update_competitor_price(tracking_id):
 def update_all_competitor_prices():
     """Update all competitor prices (admin only)"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
 
@@ -229,7 +229,7 @@ def update_all_competitor_prices():
 def get_price_comparison(product_id):
     """Get price comparison for a specific product"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
 
@@ -254,7 +254,7 @@ def get_price_comparison(product_id):
 def get_competitor_alerts():
     """Get competitor price alerts"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
 
@@ -295,7 +295,7 @@ def get_competitor_alerts():
 def update_competitor_alert(alert_id):
     """Update alert status and notes"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
 
@@ -328,7 +328,7 @@ def update_competitor_alert(alert_id):
 def get_competitor_dashboard():
     """Get competitor dashboard summary"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
 
@@ -342,10 +342,12 @@ def get_competitor_dashboard():
         ).limit(5).all()
 
         # Get products with competitor undercutting
-        undercut_products = db.session.query(CompetitorPrice).filter(
+        undercut_products = db.session.query(CompetitorPrice).join(
+            Product, CompetitorPrice.product_id == Product.id
+        ).filter(
             CompetitorPrice.is_active == True,
             CompetitorPrice.is_available == True,
-            CompetitorPrice.competitor_price < CompetitorPrice.product.price
+            CompetitorPrice.competitor_price < Product.price
         ).limit(10).all()
 
         dashboard = {
@@ -379,7 +381,7 @@ def get_competitor_dashboard():
 def get_best_deal_products():
     """Get product IDs that have the best price among competitors"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         # Allow any authenticated user to see best deals (not just admins)
 
         # Get all products with competitor tracking

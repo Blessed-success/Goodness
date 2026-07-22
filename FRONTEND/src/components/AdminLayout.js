@@ -4,12 +4,15 @@
  */
 
 import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { FiTarget } from 'react-icons/fi';
-import { FiMenu, FiX, FiLogOut, FiHome, FiBox, FiShoppingCart, FiUsers, FiBarChart3, FiUpload, FiMapPin, FiFileText, FiTrendingUp, FiMessageSquare } from 'react-icons/fi';
+import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import {
+  FiTarget, FiMenu, FiX, FiLogOut, FiHome, FiBox, FiShoppingCart, FiUsers,
+  FiUpload, FiMapPin, FiFileText, FiTrendingUp, FiMessageSquare, FiGrid, FiFilm, FiUserCheck,
+} from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
+import logoMark from '../assets/nexus-mark.png';
 
-const AdminLayout = ({ children }) => {
+const AdminLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -22,80 +25,87 @@ const AdminLayout = ({ children }) => {
 
   const isActive = (path) => location.pathname.startsWith(path);
 
-  const menuItems = [
+  const coreItems = [
     { path: '/admin', label: 'Dashboard', icon: FiHome },
+    { path: '/admin/hero-banner', label: 'Hero Banner', icon: FiFilm },
     { path: '/admin/products', label: 'Products', icon: FiBox },
+    { path: '/admin/categories', label: 'Categories', icon: FiGrid },
     { path: '/admin/orders', label: 'Orders', icon: FiShoppingCart },
+    { path: '/admin/vendors', label: 'Vendors', icon: FiUserCheck },
     { path: '/admin/users', label: 'Users', icon: FiUsers },
+    { path: '/admin/locations', label: 'Locations', icon: FiMapPin },
+  ];
+
+  const automationItems = [
     { path: '/admin/ads', label: 'Ad Generator', icon: FiFileText },
     { path: '/admin/trending', label: 'Trending Today', icon: FiTrendingUp },
     { path: '/admin/negotiation', label: 'Negotiation Assistant', icon: FiMessageSquare },
-    { path: '/admin/locations', label: 'Locations', icon: FiMapPin },
     { path: '/admin/competitor', label: 'Competitor Tracking', icon: FiTarget },
     { path: '/admin/import', label: 'Product Import', icon: FiUpload },
   ];
 
-  return (
-    <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <div
-        className={`${
-          sidebarOpen ? 'w-64' : 'w-20'
-        } bg-gray-900 text-white transition-all duration-300 flex flex-col`}
+  const renderLink = (item) => {
+    const Icon = item.icon;
+    return (
+      <Link
+        key={item.path}
+        to={item.path}
+        className={`flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm transition-colors ${
+          isActive(item.path) ? 'bg-primary-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+        }`}
       >
-        {/* Logo */}
-        <div className="p-4 flex items-center justify-between">
+        <Icon size={18} />
+        {sidebarOpen && <span>{item.label}</span>}
+      </Link>
+    );
+  };
+
+  return (
+    <div className="flex h-screen bg-gray-50">
+      {/* Sidebar */}
+      <div className={`${sidebarOpen ? 'w-64' : 'w-20'} flex flex-col bg-gray-900 text-white transition-all duration-300`}>
+        <div className="flex items-center justify-between p-4">
           <Link to="/" className="flex items-center gap-2">
-            <span className="text-2xl">🙏</span>
-            {sidebarOpen && <span className="font-bold text-lg">BlessedNet</span>}
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white p-1">
+              <img src={logoMark} alt="Nexus" className="h-full w-full object-contain" />
+            </span>
+            {sidebarOpen && <span className="text-lg font-bold">Nexus</span>}
           </Link>
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-gray-400 hover:text-white"
-          >
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-400 hover:text-white">
             {sidebarOpen ? <FiX size={20} /> : <FiMenu size={20} />}
           </button>
         </div>
 
-        {/* Menu Items */}
-        <nav className="flex-1 px-2 py-4 space-y-2">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition ${
-                  isActive(item.path)
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-400 hover:bg-gray-800'
-                }`}
-              >
-                <Icon size={20} />
-                {sidebarOpen && <span>{item.label}</span>}
-              </Link>
-            );
-          })}
+        <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-4">
+          <div className="space-y-1">
+            {sidebarOpen && (
+              <p className="px-4 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Store</p>
+            )}
+            {coreItems.map(renderLink)}
+          </div>
+          <div className="space-y-1">
+            {sidebarOpen && (
+              <p className="px-4 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Automation Tools</p>
+            )}
+            {automationItems.map(renderLink)}
+          </div>
         </nav>
 
-        {/* User Section */}
-        <div className="border-t border-gray-700 p-4">
-          <div className="flex items-center gap-3 mb-4">
-            <div
-              className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold"
-            >
+        <div className="border-t border-gray-800 p-4">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-600 font-bold text-white">
               {user?.username?.charAt(0).toUpperCase()}
             </div>
             {sidebarOpen && (
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate">{user?.username}</p>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">{user?.username}</p>
                 <p className="text-xs text-gray-400">Admin</p>
               </div>
             )}
           </div>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition text-sm font-semibold"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold transition-colors hover:bg-red-700"
           >
             <FiLogOut size={16} />
             {sidebarOpen && 'Logout'}
@@ -104,24 +114,17 @@ const AdminLayout = ({ children }) => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Bar */}
-        <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-          <div className="flex items-center gap-4">
-            <Link
-              to="/"
-              className="text-blue-600 hover:text-blue-700 font-semibold text-sm"
-            >
-              ← Back to Store
-            </Link>
-          </div>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex items-center justify-between border-b border-gray-100 bg-white px-6 py-4">
+          <h1 className="text-xl font-bold text-gray-900">Admin Dashboard</h1>
+          <Link to="/" className="text-sm font-semibold text-primary-600 hover:text-primary-700">
+            &larr; Back to Store
+          </Link>
         </div>
 
-        {/* Page Content */}
         <div className="flex-1 overflow-auto">
           <div className="p-6">
-            {children}
+            <Outlet />
           </div>
         </div>
       </div>

@@ -1,5 +1,5 @@
 """
-Cart Routes for BlessedNet Wholesale Hub
+Cart Routes for Nexus Wholesale Hub
 Handles shopping cart operations
 """
 
@@ -31,7 +31,7 @@ def get_or_create_cart(user_id):
 def get_cart():
     """Get user's cart"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         cart = get_or_create_cart(user_id)
         
         return jsonify({
@@ -58,7 +58,7 @@ def add_to_cart():
     }
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         # Check if user's location is active
         is_active, region_name, city_name, reason = is_user_location_active(user_id)
@@ -149,7 +149,7 @@ def update_cart_item(item_id):
     }
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         data = request.get_json()
         
         if not data:
@@ -203,7 +203,7 @@ def update_cart_item(item_id):
 def remove_from_cart(item_id):
     """Remove item from cart"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         # Get cart item
         cart_item = CartItem.query.get(item_id)
@@ -236,7 +236,7 @@ def remove_from_cart(item_id):
 def clear_cart():
     """Clear entire cart"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         cart = Cart.query.filter_by(user_id=user_id).first()
         

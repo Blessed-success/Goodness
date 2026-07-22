@@ -1,5 +1,5 @@
 """
-Advanced Bulk Import Routes for BlessedNet Wholesale Hub
+Advanced Bulk Import Routes for Nexus Wholesale Hub
 Handles multi-URL imports, CSV uploads, and background job processing
 """
 
@@ -40,7 +40,7 @@ def is_admin(user_id):
 def get_import_jobs():
     """Get all import jobs for current user (or all if admin)"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         user = User.query.get(user_id)
         
         page = request.args.get('page', 1, type=int)
@@ -81,7 +81,7 @@ def get_import_jobs():
 def get_job_details(job_id):
     """Get detailed information about a specific import job"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         user = User.query.get(user_id)
         
         job = ImportJob.query.filter_by(job_id=job_id).first()
@@ -117,7 +117,7 @@ def bulk_import_csv():
     https://www.1688.com/offer/456,50
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -230,7 +230,7 @@ def bulk_import_urls():
     }
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -449,7 +449,7 @@ def process_import_task(task):
 def export_import_results(job_id):
     """Export import job results as CSV"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         user = User.query.get(user_id)
         
         job = ImportJob.query.filter_by(job_id=job_id).first()

@@ -1,10 +1,11 @@
 """
-Location Routes for BlessedNet Wholesale Hub
+Location Routes for Nexus Wholesale Hub
 Handles region and city management for location-based access control
 """
 
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from datetime import datetime
 from utils.limiter import limiter
 from models import db, Region, City, User
 from utils.security import safe_error_response
@@ -134,7 +135,7 @@ def get_all_cities():
 def get_user_location():
     """Get current user's location information"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         location_info = get_user_location_info(user_id)
         
         return jsonify({
@@ -161,7 +162,7 @@ def select_user_location():
     }
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         data = request.get_json()
         
         if not data:
@@ -209,7 +210,7 @@ def select_user_location():
 def check_user_access():
     """Check if user's location has access to buy products"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         is_active, region_name, city_name, reason = is_user_location_active(user_id)
         
         return jsonify({
@@ -233,7 +234,7 @@ def check_user_access():
 def admin_get_regions():
     """Get all regions (admin - includes inactive)"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         user = User.query.get(user_id)
         
         if not user or not user.is_admin:
@@ -256,36 +257,49 @@ def admin_get_regions():
 @limiter.limit("10 per minute")
 def admin_update_region(region_id):
     """
-    Toggle region active status
-    
-    Request body:
+    Update a region's active status and/or delivery fee
+
+    Request body (either or both):
     {
-        "is_active": true
+        "is_active": true,
+        "delivery_fee": 12.50
     }
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         user = User.query.get(user_id)
-        
+
         if not user or not user.is_admin:
             return jsonify({'error': 'Admin access required'}), 403
-        
+
         region = Region.query.get(region_id)
         if not region:
             return jsonify({'error': 'Region not found'}), 404
-        
+
         data = request.get_json()
-        if not data or 'is_active' not in data:
-            return jsonify({'error': 'is_active parameter is required'}), 400
-        
-        region.is_active = bool(data.get('is_active'))
+        if not data or ('is_active' not in data and 'delivery_fee' not in data):
+            return jsonify({'error': 'is_active and/or delivery_fee is required'}), 400
+
+        if 'is_active' in data:
+            region.is_active = bool(data.get('is_active'))
+
+        if 'delivery_fee' in data:
+            try:
+                delivery_fee = float(data.get('delivery_fee'))
+            except (TypeError, ValueError):
+                return jsonify({'error': 'delivery_fee must be a number'}), 400
+            if delivery_fee < 0:
+                return jsonify({'error': 'delivery_fee cannot be negative'}), 400
+            region.delivery_fee = delivery_fee
+
+        region.updated_at = datetime.utcnow()
         db.session.commit()
-        
+
         return jsonify({
-            'message': f'Region {region.name} status updated',
+            'message': f'Region {region.name} updated',
             'data': region.to_dict(include_cities=True)
         }), 200
-    
+
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception(e)
@@ -305,7 +319,7 @@ def admin_update_city(city_id):
     }
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         user = User.query.get(user_id)
         
         if not user or not user.is_admin:
@@ -339,7 +353,7 @@ def admin_update_city(city_id):
 def admin_location_stats():
     """Get location statistics (admin)"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         user = User.query.get(user_id)
         
         if not user or not user.is_admin:

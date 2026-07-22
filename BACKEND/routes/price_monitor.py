@@ -23,7 +23,7 @@ def is_admin(user_id):
 def get_monitor_status():
     """Get price monitor and scheduler status"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -60,7 +60,7 @@ def get_monitor_status():
 def enable_monitoring(product_id):
     """Enable price monitoring for a product"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -97,7 +97,7 @@ def enable_monitoring(product_id):
 def disable_monitoring(product_id):
     """Disable price monitoring for a product"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -129,7 +129,7 @@ def disable_monitoring(product_id):
 def manual_price_check():
     """Manually trigger price check for all products"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -152,7 +152,7 @@ def manual_price_check():
 def get_price_alerts():
     """Get price alerts with filtering"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -203,7 +203,7 @@ def get_price_alerts():
 def approve_alert(alert_id):
     """Admin approves a price alert and applies update"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -231,7 +231,7 @@ def approve_alert(alert_id):
 def dismiss_alert(alert_id):
     """Admin dismisses a price alert without updating"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -259,7 +259,7 @@ def dismiss_alert(alert_id):
 def get_alerts_summary():
     """Get summary of pending price alerts"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -281,7 +281,7 @@ def get_alerts_summary():
 def get_monitored_products():
     """Get all products with price monitoring enabled"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403
@@ -327,7 +327,7 @@ def get_monitored_products():
 def get_product_alerts(product_id):
     """Get all price alerts for a specific product"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         if not is_admin(user_id):
             return jsonify({'error': 'Admin access required'}), 403

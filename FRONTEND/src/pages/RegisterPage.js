@@ -7,6 +7,9 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import LocationSelector from '../components/LocationSelector';
+import Card from '../components/ui/Card';
+import Button from '../components/ui/Button';
+import logo from '../assets/nexus-logo.png';
 
 const RegisterPage = () => {
   const navigate = useNavigate();
@@ -41,7 +44,6 @@ const RegisterPage = () => {
     e.preventDefault();
     setError('');
 
-    // Validate
     if (!formData.username || !formData.email || !formData.password || !formData.fullName) {
       setError('Please fill in all required fields');
       return;
@@ -75,140 +77,124 @@ const RegisterPage = () => {
     }
   };
 
-  const handleLocationSelect = (location) => {
-    // Location selected, now navigate to home
+  const handleLocationSelect = () => {
     setShowLocationSelector(false);
     navigate('/');
   };
 
   // Show location selector after registration
   if (showLocationSelector) {
-    return (
-      <LocationSelector
-        showModal={true}
-        onLocationSelect={handleLocationSelect}
-      />
-    );
+    return <LocationSelector showModal={true} onLocationSelect={handleLocationSelect} />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
-      <div className="max-w-md w-full bg-white rounded-lg shadow p-8">
-        <div className="text-center mb-8">
-          <div className="text-4xl mb-3">🙏</div>
-          <h1 className="text-3xl font-bold text-gray-900">Create Account</h1>
-          <p className="text-gray-600 mt-2">Join BlessedNet Wholesale Hub</p>
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12">
+      <Card className="w-full max-w-md">
+        <div className="mb-8 text-center">
+          <img src={logo} alt="Nexus" className="mx-auto mb-4 h-10 w-auto" />
+          <h1 className="text-2xl font-bold text-gray-900">Create your account</h1>
+          <p className="mt-1 text-gray-500">Join Nexus Wholesale Hub</p>
         </div>
 
         {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded text-red-700">
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold mb-2">Full Name *</label>
+            <label className="mb-2 block text-sm font-semibold text-gray-700">Full Name *</label>
             <input
               type="text"
               name="fullName"
               value={formData.fullName}
               onChange={handleChange}
               placeholder="John Doe"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 focus:border-primary-500 focus:outline-none"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-semibold mb-2">Username *</label>
+            <label className="mb-2 block text-sm font-semibold text-gray-700">Username *</label>
             <input
               type="text"
               name="username"
               value={formData.username}
               onChange={handleChange}
               placeholder="johndoe"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 focus:border-primary-500 focus:outline-none"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-semibold mb-2">Email Address *</label>
+            <label className="mb-2 block text-sm font-semibold text-gray-700">Email Address *</label>
             <input
               type="email"
               name="email"
               value={formData.email}
               onChange={handleChange}
               placeholder="your@email.com"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 focus:border-primary-500 focus:outline-none"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-semibold mb-2">Phone Number</label>
+            <label className="mb-2 block text-sm font-semibold text-gray-700">Phone Number</label>
             <input
               type="tel"
               name="phone"
               value={formData.phone}
               onChange={handleChange}
               placeholder="+233 123 456 789"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 focus:border-primary-500 focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-semibold mb-2">Password *</label>
+            <label className="mb-2 block text-sm font-semibold text-gray-700">Password *</label>
             <input
               type="password"
               name="password"
               value={formData.password}
               onChange={handleChange}
               placeholder="••••••••"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 focus:border-primary-500 focus:outline-none"
               required
             />
-            <p className="text-xs text-gray-500 mt-1">Minimum 6 characters</p>
+            <p className="mt-1 text-xs text-gray-400">Minimum 6 characters</p>
           </div>
 
           <div>
-            <label className="block text-sm font-semibold mb-2">Confirm Password *</label>
+            <label className="mb-2 block text-sm font-semibold text-gray-700">Confirm Password *</label>
             <input
               type="password"
               name="confirmPassword"
               value={formData.confirmPassword}
               onChange={handleChange}
               placeholder="••••••••"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 focus:border-primary-500 focus:outline-none"
               required
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? '⏳ Creating Account...' : '✅ Create Account'}
-          </button>
+          <Button type="submit" fullWidth size="lg" loading={loading}>
+            Create Account
+          </Button>
         </form>
 
-        <div className="mt-6 text-center">
-          <p className="text-gray-600">
+        <div className="mt-6 text-center text-sm">
+          <p className="text-gray-500">
             Already have an account?{' '}
-            <Link to="/login" className="text-blue-600 hover:text-blue-700 font-semibold">
+            <Link to="/login" className="font-semibold text-primary-600 hover:text-primary-700">
               Login here
             </Link>
           </p>
         </div>
-
-        <div className="mt-6 p-4 bg-green-50 rounded text-sm">
-          <p className="text-green-800">
-            ✅ <strong>Secure registration</strong> - Your data is encrypted and protected
-          </p>
-        </div>
-      </div>
+      </Card>
     </div>
   );
 };

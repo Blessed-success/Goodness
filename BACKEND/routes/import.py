@@ -1,5 +1,5 @@
 """
-Product Import Routes for BlessedNet Wholesale Hub
+Product Import Routes for Nexus Wholesale Hub
 Handles 1688 product import for dropshipping workflow
 """
 
@@ -41,7 +41,7 @@ def preview_import():
     }
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         data = request.get_json()
         
         if not data:
@@ -143,7 +143,7 @@ def import_product():
     }
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         # Check if user is admin
         if not is_admin(user_id):
@@ -256,7 +256,7 @@ def batch_import():
     }
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         # Check if user is admin
         if not is_admin(user_id):

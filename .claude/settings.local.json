@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -X POST http://localhost:5000/api/payment/whatsapp-order -H 'Content-Type: application/json' -d '{ *)",
+      "Bash(curl -s http://localhost:5000/api/products/price-range -w \"\\\\nstatus: %{http_code}\\\\n\")",
+      "Bash(curl -s \"http://localhost:5000/api/products?min_price=10&max_price=100&min_rating=4&on_sale=true\" -w \"\\\\nstatus: %{http_code}\\\\n\")",
+      "Bash(grep -o \".\\\\{0,40\\\\}is not defined.\\\\{0,10\\\\}\" /tmp/bundle3.js)",
+      "Bash(grep -o \".\\\\{0,10\\\\}bg-accent-400 {.\\\\{0,60\\\\}\" /tmp/bundle3.js)",
+      "Bash(curl -s --max-time 8 -o /dev/null -w \"Frontend: %{http_code}\\\\n\" http://localhost:3000/)",
+      "Bash(python -c ' *)",
+      "Bash(python -m json.tool)",
+      "Bash(curl -s --max-time 20 http://localhost:3000/static/js/bundle.js -o /c/Users/Nana/AppData/Local/Temp/bundle2.js)",
+      "Read(//c/Users/Nana/AppData/Local/Temp/**)"
+    ]
+  }
+}

@@ -6,6 +6,7 @@ Uses APScheduler to run price checks and competitor updates automatically
 import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from database import db
 from utils.price_monitor import PriceMonitor
 from utils.competitor_tracker import CompetitorPriceManager
 
@@ -25,7 +26,7 @@ class SchedulerManager:
         try:
             cls._scheduler = BackgroundScheduler()
             cls._price_monitor = PriceMonitor()
-            cls._competitor_manager = CompetitorPriceManager(app.db.session)
+            cls._competitor_manager = CompetitorPriceManager(db.session)
             
             # Schedule price check every 6 hours
             cls._scheduler.add_job(

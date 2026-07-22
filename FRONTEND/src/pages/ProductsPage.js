@@ -4,13 +4,25 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
+import { FiX, FiCamera } from 'react-icons/fi';
 import ProductCard from '../components/ProductCard';
+import Card from '../components/ui/Card';
+import Button from '../components/ui/Button';
+import Pagination from '../components/ui/Pagination';
+import PriceRangeSlider from '../components/ui/PriceRangeSlider';
+import RecentlyViewedStrip from '../components/home/RecentlyViewedStrip';
 import { productsAPI } from '../api';
 import axios from 'axios';
 
+const RATING_OPTIONS = [4, 3, 2];
+
 const ProductsPage = () => {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [visualResults, setVisualResults] = useState(location.state?.visualResults || null);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,11 +36,51 @@ const ProductsPage = () => {
   const [page, setPage] = useState(1);
   const [bestDealProducts, setBestDealProducts] = useState(new Set());
 
+  // Price range
+  const [priceBounds, setPriceBounds] = useState(null); // { min, max } from the catalog
+  const [priceRange, setPriceRange] = useState(null); // [minVal, maxVal] currently selected
+  const [debouncedPriceRange, setDebouncedPriceRange] = useState(null);
+  const [minRating, setMinRating] = useState(0);
+  const [onSale, setOnSale] = useState(false);
+
   useEffect(() => {
     fetchCategories();
-    fetchProducts();
+    fetchPriceBounds();
     fetchBestDeals();
-  }, [selectedCategory, searchTerm, sortBy, sortOrder, page]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Re-sync from the URL on every navigation to /products, not just the
+  // first mount — react-router doesn't remount this page when only the
+  // query string changes (e.g. searching again from the Header while
+  // already here), so without this the page silently kept showing stale
+  // results. Also clears any leftover image-search results so a fresh
+  // text/category search isn't blocked by the visualResults guard below.
+  useEffect(() => {
+    setSelectedCategory(searchParams.get('category') || '');
+    setSearchTerm(searchParams.get('search') || '');
+    setPage(1);
+    setVisualResults(location.state?.visualResults || null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, location.state]);
+
+  // Debounce price slider drags so we don't fire a request per pixel moved
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedPriceRange(priceRange), 350);
+    return () => clearTimeout(timer);
+  }, [priceRange]);
+
+  useEffect(() => {
+    if (visualResults) return; // showing photo-search results instead of the filtered catalog
+    if (priceBounds && !debouncedPriceRange) return; // wait for initial bounds
+    fetchProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategory, searchTerm, sortBy, sortOrder, page, debouncedPriceRange, minRating, onSale, visualResults]);
+
+  const clearVisualResults = () => {
+    setVisualResults(null);
+    navigate('/products', { replace: true, state: {} });
+  };
 
   const fetchCategories = async () => {
     try {
@@ -36,6 +88,19 @@ const ProductsPage = () => {
       setCategories(response.data.data);
     } catch (error) {
       console.error('Failed to fetch categories:', error);
+    }
+  };
+
+  const fetchPriceBounds = async () => {
+    try {
+      const response = await productsAPI.getPriceRange();
+      const { min_price, max_price } = response.data.data;
+      const bounds = { min: Math.floor(min_price), max: Math.max(Math.ceil(max_price), Math.floor(min_price) + 1) };
+      setPriceBounds(bounds);
+      setPriceRange([bounds.min, bounds.max]);
+      setDebouncedPriceRange([bounds.min, bounds.max]);
+    } catch (error) {
+      console.error('Failed to fetch price range:', error);
     }
   };
 
@@ -58,6 +123,19 @@ const ProductsPage = () => {
         params.search = searchTerm;
       }
 
+      if (debouncedPriceRange && priceBounds) {
+        if (debouncedPriceRange[0] > priceBounds.min) params.min_price = debouncedPriceRange[0];
+        if (debouncedPriceRange[1] < priceBounds.max) params.max_price = debouncedPriceRange[1];
+      }
+
+      if (minRating > 0) {
+        params.min_rating = minRating;
+      }
+
+      if (onSale) {
+        params.on_sale = true;
+      }
+
       const response = await productsAPI.getAll(params);
       setProducts(response.data.data.products);
       setPagination(response.data.data.pagination);
@@ -71,7 +149,7 @@ const ProductsPage = () => {
   const fetchBestDeals = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      if (!token) return; // Only fetch for authenticated users
+      if (!token) return;
 
       const response = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/competitor/best-deals`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -80,8 +158,7 @@ const ProductsPage = () => {
       const bestDealIds = new Set(response.data.data.best_deal_product_ids || []);
       setBestDealProducts(bestDealIds);
     } catch (error) {
-      console.error('Failed to fetch best deals:', error);
-      // Don't show error to user, just continue without best deal badges
+      // Best-deal badges are a bonus signal; fail silently for the shopper.
     }
   };
 
@@ -90,40 +167,59 @@ const ProductsPage = () => {
     setSearchTerm('');
     setSortBy('created_at');
     setSortOrder('desc');
+    setMinRating(0);
+    setOnSale(false);
+    if (priceBounds) {
+      setPriceRange([priceBounds.min, priceBounds.max]);
+      setDebouncedPriceRange([priceBounds.min, priceBounds.max]);
+    }
     setPage(1);
   };
 
+  const isPriceFiltered =
+    priceBounds && debouncedPriceRange &&
+    (debouncedPriceRange[0] > priceBounds.min || debouncedPriceRange[1] < priceBounds.max);
+
+  const pageTitle = selectedCategory
+    ? `${selectedCategory} — Nexus Wholesale Hub`
+    : searchTerm
+    ? `Search: ${searchTerm} — Nexus Wholesale Hub`
+    : 'All Products — Nexus Wholesale Hub';
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <h1 className="text-4xl font-bold mb-8">🛍️ All Products</h1>
+      <Helmet>
+        <title>{pageTitle}</title>
+        <meta name="description" content="Browse wholesale products across every category on Nexus, with flash sales, trending items, and trusted vendor stores." />
+      </Helmet>
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        <h1 className="mb-8 text-3xl font-bold text-gray-900">All Products</h1>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
           {/* Filters Sidebar */}
           <div className="md:col-span-1">
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-bold mb-4">Filters</h2>
+            <Card>
+              <h2 className="mb-4 text-lg font-bold text-gray-900">Filters</h2>
 
-              {/* Category Filter */}
               <div className="mb-6">
-                <h3 className="font-semibold mb-3">Category</h3>
-                <div className="space-y-2">
-                  <label className="flex items-center">
+                <h3 className="mb-3 text-sm font-semibold text-gray-700">Category</h3>
+                <div className="space-y-2 text-sm">
+                  <label className="flex items-center gap-2 text-gray-600">
                     <input
                       type="radio"
                       checked={selectedCategory === ''}
                       onChange={() => setSelectedCategory('')}
-                      className="mr-2"
+                      className="text-primary-600"
                     />
                     All Categories
                   </label>
                   {categories.map((category) => (
-                    <label key={category} className="flex items-center">
+                    <label key={category} className="flex items-center gap-2 text-gray-600">
                       <input
                         type="radio"
                         checked={selectedCategory === category}
                         onChange={() => setSelectedCategory(category)}
-                        className="mr-2"
+                        className="text-primary-600"
                       />
                       {category}
                     </label>
@@ -131,16 +227,77 @@ const ProductsPage = () => {
                 </div>
               </div>
 
-              {/* Sort By */}
+              {priceBounds && priceRange && (
+                <div className="mb-6">
+                  <h3 className="mb-3 text-sm font-semibold text-gray-700">Price Range</h3>
+                  <PriceRangeSlider
+                    min={priceBounds.min}
+                    max={priceBounds.max}
+                    value={priceRange}
+                    onChange={(next) => {
+                      setPriceRange(next);
+                      setPage(1);
+                    }}
+                  />
+                </div>
+              )}
+
               <div className="mb-6">
-                <h3 className="font-semibold mb-3">Sort By</h3>
+                <h3 className="mb-3 text-sm font-semibold text-gray-700">Minimum Rating</h3>
+                <div className="space-y-2 text-sm">
+                  <label className="flex items-center gap-2 text-gray-600">
+                    <input
+                      type="radio"
+                      checked={minRating === 0}
+                      onChange={() => {
+                        setMinRating(0);
+                        setPage(1);
+                      }}
+                      className="text-primary-600"
+                    />
+                    Any Rating
+                  </label>
+                  {RATING_OPTIONS.map((r) => (
+                    <label key={r} className="flex items-center gap-2 text-gray-600">
+                      <input
+                        type="radio"
+                        checked={minRating === r}
+                        onChange={() => {
+                          setMinRating(r);
+                          setPage(1);
+                        }}
+                        className="text-primary-600"
+                      />
+                      {r}+ Stars
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <label className="flex items-center gap-2 text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={onSale}
+                    onChange={(e) => {
+                      setOnSale(e.target.checked);
+                      setPage(1);
+                    }}
+                    className="rounded text-primary-600"
+                  />
+                  On Sale Only
+                </label>
+              </div>
+
+              <div className="mb-6">
+                <h3 className="mb-3 text-sm font-semibold text-gray-700">Sort By</h3>
                 <select
                   value={sortBy}
                   onChange={(e) => {
                     setSortBy(e.target.value);
                     setPage(1);
                   }}
-                  className="w-full border border-gray-300 rounded px-3 py-2 mb-3"
+                  className="mb-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
                 >
                   <option value="created_at">Newest</option>
                   <option value="name">Name</option>
@@ -148,8 +305,8 @@ const ProductsPage = () => {
                   <option value="rating">Rating</option>
                 </select>
 
-                <div className="space-y-2">
-                  <label className="flex items-center">
+                <div className="space-y-2 text-sm">
+                  <label className="flex items-center gap-2 text-gray-600">
                     <input
                       type="radio"
                       checked={sortOrder === 'asc'}
@@ -157,11 +314,11 @@ const ProductsPage = () => {
                         setSortOrder('asc');
                         setPage(1);
                       }}
-                      className="mr-2"
+                      className="text-primary-600"
                     />
                     Low to High
                   </label>
-                  <label className="flex items-center">
+                  <label className="flex items-center gap-2 text-gray-600">
                     <input
                       type="radio"
                       checked={sortOrder === 'desc'}
@@ -169,26 +326,21 @@ const ProductsPage = () => {
                         setSortOrder('desc');
                         setPage(1);
                       }}
-                      className="mr-2"
+                      className="text-primary-600"
                     />
                     High to Low
                   </label>
                 </div>
               </div>
 
-              {/* Reset Button */}
-              <button
-                onClick={handleFilterReset}
-                className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
-              >
+              <Button variant="outline" fullWidth onClick={handleFilterReset}>
                 Reset Filters
-              </button>
-            </div>
+              </Button>
+            </Card>
           </div>
 
           {/* Products Grid */}
           <div className="md:col-span-3">
-            {/* Search Bar */}
             <div className="mb-6">
               <input
                 type="text"
@@ -198,41 +350,92 @@ const ProductsPage = () => {
                   setSearchTerm(e.target.value);
                   setPage(1);
                 }}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm focus:border-primary-500 focus:outline-none"
               />
             </div>
 
-            {/* Active Filters */}
-            {(selectedCategory || searchTerm) && (
-              <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-                <p className="text-sm text-gray-700">
-                  {selectedCategory && (
-                    <span className="inline-block mr-3 bg-blue-200 px-3 py-1 rounded-full">
-                      Category: {selectedCategory} ✕
-                    </span>
-                  )}
-                  {searchTerm && (
-                    <span className="inline-block bg-blue-200 px-3 py-1 rounded-full">
-                      Search: {searchTerm} ✕
-                    </span>
-                  )}
-                </p>
+            {(selectedCategory || searchTerm || isPriceFiltered || minRating > 0 || onSale) && (
+              <div className="mb-6 flex flex-wrap gap-2">
+                {selectedCategory && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-3 py-1 text-sm text-primary-700">
+                    Category: {selectedCategory}
+                    <button onClick={() => setSelectedCategory('')}>
+                      <FiX size={14} />
+                    </button>
+                  </span>
+                )}
+                {searchTerm && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-3 py-1 text-sm text-primary-700">
+                    Search: {searchTerm}
+                    <button onClick={() => setSearchTerm('')}>
+                      <FiX size={14} />
+                    </button>
+                  </span>
+                )}
+                {isPriceFiltered && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-3 py-1 text-sm text-primary-700">
+                    Price: GHS {priceRange[0]}&ndash;{priceRange[1]}
+                    <button
+                      onClick={() => {
+                        setPriceRange([priceBounds.min, priceBounds.max]);
+                        setDebouncedPriceRange([priceBounds.min, priceBounds.max]);
+                      }}
+                    >
+                      <FiX size={14} />
+                    </button>
+                  </span>
+                )}
+                {minRating > 0 && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-3 py-1 text-sm text-primary-700">
+                    {minRating}+ Stars
+                    <button onClick={() => setMinRating(0)}>
+                      <FiX size={14} />
+                    </button>
+                  </span>
+                )}
+                {onSale && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-3 py-1 text-sm text-primary-700">
+                    On Sale
+                    <button onClick={() => setOnSale(false)}>
+                      <FiX size={14} />
+                    </button>
+                  </span>
+                )}
               </div>
             )}
 
-            {loading ? (
-              <div className="text-center py-12">
-                <p className="text-gray-600 text-lg">Loading products... ⏳</p>
-              </div>
+            {visualResults ? (
+              <>
+                <div className="mb-4 flex items-center justify-between rounded-lg bg-primary-50 px-4 py-3 text-sm text-primary-800">
+                  <span className="flex items-center gap-2">
+                    <FiCamera size={16} /> Showing visually similar products to your photo ({visualResults.length} found)
+                  </span>
+                  <button onClick={clearVisualResults} className="font-semibold underline">
+                    Clear
+                  </button>
+                </div>
+                {visualResults.length > 0 ? (
+                  <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {visualResults.map((product) => (
+                      <ProductCard key={product.id} product={product} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-16 text-center">
+                    <p className="mb-4 text-lg text-gray-600">No visually similar products found</p>
+                    <Button onClick={clearVisualResults}>Browse All Products</Button>
+                  </div>
+                )}
+              </>
+            ) : loading ? (
+              <div className="py-16 text-center text-gray-500">Loading products&hellip;</div>
             ) : products.length > 0 ? (
               <>
-                {/* Results Count */}
-                <div className="mb-4 text-gray-600">
+                <div className="mb-4 text-sm text-gray-500">
                   Showing {products.length} of {pagination.total} products
                 </div>
 
-                {/* Products Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                   {products.map((product) => (
                     <ProductCard
                       key={product.id}
@@ -242,54 +445,20 @@ const ProductsPage = () => {
                   ))}
                 </div>
 
-                {/* Pagination */}
-                {pagination.pages > 1 && (
-                  <div className="flex justify-center gap-2">
-                    <button
-                      onClick={() => setPage(Math.max(1, page - 1))}
-                      disabled={!pagination.has_prev}
-                      className="px-4 py-2 border rounded hover:bg-gray-100 disabled:opacity-50"
-                    >
-                      ← Previous
-                    </button>
-
-                    {Array.from({ length: pagination.pages }, (_, i) => i + 1).map((p) => (
-                      <button
-                        key={p}
-                        onClick={() => setPage(p)}
-                        className={`px-3 py-2 rounded ${
-                          p === page
-                            ? 'bg-blue-600 text-white'
-                            : 'border hover:bg-gray-100'
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    ))}
-
-                    <button
-                      onClick={() => setPage(Math.min(pagination.pages, page + 1))}
-                      disabled={!pagination.has_next}
-                      className="px-4 py-2 border rounded hover:bg-gray-100 disabled:opacity-50"
-                    >
-                      Next →
-                    </button>
-                  </div>
-                )}
+                <Pagination page={page} pages={pagination.pages} onChange={setPage} />
               </>
             ) : (
-              <div className="text-center py-12">
-                <p className="text-gray-600 text-lg mb-4">No products found</p>
-                <button
-                  onClick={handleFilterReset}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
-                >
-                  Reset Filters
-                </button>
+              <div className="py-16 text-center">
+                <p className="mb-4 text-lg text-gray-600">No products found</p>
+                <Button onClick={handleFilterReset}>Reset Filters</Button>
               </div>
             )}
           </div>
         </div>
+      </div>
+
+      <div className="py-4">
+        <RecentlyViewedStrip />
       </div>
     </div>
   );

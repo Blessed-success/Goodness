@@ -1,17 +1,19 @@
 """
-Payment Routes for BlessedNet Wholesale Hub
+Payment Routes for Nexus Wholesale Hub
 Handles Paystack integration for Ghana payment processing
 """
 
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from utils.limiter import limiter
-from models import db, Order, User, Product, Cart
+from models import db, Order, OrderItem, User, Product, Cart, Vendor, VendorEarning
 from datetime import datetime
 from utils.security import safe_error_response
 from utils.location_validation import is_user_location_active
 import requests
 import os
+import re
+from urllib.parse import quote
 
 payment_bp = Blueprint('payment', __name__, url_prefix='/api/payment')
 PAYSTACK_BASE_URL = 'https://api.paystack.co'
@@ -38,7 +40,7 @@ def initialize_payment():
     }
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         
         # Check if user's location is active
         is_active, region_name, city_name, reason = is_user_location_active(user_id)
@@ -151,7 +153,7 @@ def verify_payment():
     }
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         data = request.get_json()
         
         if not data:
@@ -257,6 +259,23 @@ def verify_payment():
             product.stock_quantity -= item.quantity
             db.session.add(product)
 
+            # Marketplace commission ledger: money still flows through this
+            # single Paystack account as before — this only records what
+            # each vendor is owed for admin to reconcile/pay out manually.
+            if product.vendor_id:
+                vendor = Vendor.query.get(product.vendor_id)
+                if vendor:
+                    gross = item.subtotal
+                    commission = gross * (vendor.commission_percent / 100)
+                    db.session.add(VendorEarning(
+                        vendor_id=vendor.id,
+                        order_id=order.id,
+                        order_item_id=item.id,
+                        gross_amount=gross,
+                        commission_amount=commission,
+                        net_amount=gross - commission,
+                    ))
+
         cart = Cart.query.filter_by(user_id=user_id).first()
         if cart:
             for cart_item in list(cart.items):
@@ -331,8 +350,7 @@ def verify_payment_get(reference):
             customer_email = data.get('customer', {}).get('email', 'N/A')
             amount_ghs = data.get('amount', 0) / 100
             message = f"New Order!\nEmail: {customer_email}\nAmount: GHS {amount_ghs}"
-            encoded_message = message.replace(' ', '%20').replace('\n', '%0A')
-            whatsapp_url = f"https://wa.me/233502683544?text={encoded_message}"
+            whatsapp_url = f"https://wa.me/233502683544?text={message.replace(' ', '%20').replace('\n', '%0A')}"
             current_app.logger.info(f"Send WhatsApp: {whatsapp_url}")
             
             return jsonify({
@@ -421,85 +439,100 @@ def paystack_webhook():
 @payment_bp.route('/whatsapp-order', methods=['POST'])
 def whatsapp_order():
     """
-    Generate WhatsApp order message
-    Sends product information to WhatsApp for manual quote
-    
-    Request body:
-    {
-        "product_id": 1,
-        "quantity": 2,
-        "customer_name": "John Doe",
-        "customer_phone": "+233123456789"
-    }
+    Generate a WhatsApp click-to-chat link for a quote request.
+    Accepts either a single product (product_id + quantity, used from
+    product cards) or a full order (order_id, used from checkout) so the
+    generated message always reflects everything the customer is asking
+    about instead of only the first item. customer_name/customer_phone are
+    optional — this is a low-friction "ask for a quote" flow, not gated
+    behind having an account or a saved phone number.
+
+    Request body (one of):
+    { "product_id": 1, "quantity": 2, "customer_name": "John Doe", "customer_phone": "+233123456789" }
+    { "order_id": 42, "customer_name": "John Doe", "customer_phone": "+233123456789" }
     """
     try:
         data = request.get_json()
-        
+
         if not data:
             return jsonify({'error': 'No data provided'}), 400
-        
+
         product_id = data.get('product_id')
+        order_id = data.get('order_id')
         quantity = data.get('quantity', 1)
-        customer_name = data.get('customer_name', '').strip()
-        customer_phone = data.get('customer_phone', '').strip()
-        
-        if not product_id or not customer_phone:
-            return jsonify({'error': 'product_id and customer_phone are required'}), 400
-        
-        # Import Product model
-        from models import Product
-        
-        # Get product
-        product = Product.query.get(product_id)
-        
-        if not product:
-            return jsonify({'error': 'Product not found'}), 404
-        
-        # Get WhatsApp number from environment
-        whatsapp_number = os.getenv('WHATSAPP_BUSINESS_PHONE', os.getenv('WHATSAPP_BUSINESS_PHONE_NUMBER', '233xxxxxxxxx'))
-        
+        customer_name = (data.get('customer_name') or '').strip() or 'Guest'
+        customer_phone = (data.get('customer_phone') or '').strip() or 'Not provided'
+
+        if not product_id and not order_id:
+            return jsonify({'error': 'product_id or order_id is required'}), 400
+
+        if order_id:
+            order = Order.query.get(order_id)
+            if not order:
+                return jsonify({'error': 'Order not found'}), 404
+
+            items = OrderItem.query.filter_by(order_id=order.id).all()
+            lines = [
+                f"\U0001F4E6 {item.quantity}x {item.product.name if item.product else 'Product'} @ GHS {item.price_at_purchase} = GHS {item.subtotal}"
+                for item in items
+            ]
+            items_block = '\n'.join(lines) if lines else 'No items'
+            reference_label = f"Order #{order.order_number}"
+            total_price = order.total_amount
+        else:
+            product = Product.query.get(product_id)
+            if not product:
+                return jsonify({'error': 'Product not found'}), 404
+
+            total_price = product.discounted_price * quantity
+            items_block = (
+                f"\U0001F4E6 Product: {product.name}\n"
+                f"\U0001F522 Quantity: {quantity}\n"
+                f"\U0001F4B0 Unit Price: GHS {product.price}\n"
+                f"\U0001F4CA Discount: {product.discount_percent}%"
+            )
+            reference_label = product.name
+
+        # Get WhatsApp number from environment. WhatsApp's click-to-chat links
+        # require digits only (no '+', spaces, or dashes) or the link fails.
+        whatsapp_number_raw = os.getenv('WHATSAPP_BUSINESS_PHONE', os.getenv('WHATSAPP_BUSINESS_PHONE_NUMBER', '233xxxxxxxxx'))
+        whatsapp_number = re.sub(r'\D', '', whatsapp_number_raw)
+
         # Prepare message
         message = f"""
-Hello BlessedNet Wholesale Hub! 👋
+Hello Nexus Wholesale Hub! \U0001F44B
 
 I'm interested in:
-📦 Product: {product.name}
-🔢 Quantity: {quantity}
-💰 Unit Price: GHS {product.price}
-📊 Discount: {product.discount_percent}%
-💹 Total Price: GHS {product.discounted_price * quantity}
+{items_block}
+\U0001F4B9 Total Price: GHS {total_price}
 
 Customer Details:
-👤 Name: {customer_name}
-📱 Phone: {customer_phone}
+\U0001F464 Name: {customer_name}
+\U0001F4F1 Phone: {customer_phone}
 
 Please provide a quote and delivery details.
         """.strip()
-        
-        # Create WhatsApp link
-        whatsapp_url = f"https://api.whatsapp.com/send?phone={whatsapp_number}&text={message.replace(chr(10), '%0A').replace(chr(32), '%20')}"
-        
+
+        # quote() percent-encodes everything unsafe for a URL query value
+        # (including '&', '#', '%', and non-ASCII characters like names or
+        # emoji) — a manual str.replace() on just spaces/newlines let those
+        # characters through and silently truncated/corrupted the message.
+        whatsapp_url = f"https://api.whatsapp.com/send?phone={whatsapp_number}&text={quote(message)}"
+
         return jsonify({
             'message': 'WhatsApp order message generated',
             'data': {
                 'whatsapp_url': whatsapp_url,
                 'whatsapp_number': whatsapp_number,
-                'product': {
-                    'id': product.id,
-                    'name': product.name,
-                    'price': product.price,
-                    'discount_percent': product.discount_percent,
-                    'discounted_price': product.discounted_price
-                },
+                'reference': reference_label,
                 'order': {
-                    'quantity': quantity,
-                    'total_price': product.discounted_price * quantity,
+                    'total_price': total_price,
                     'customer_name': customer_name,
                     'customer_phone': customer_phone
                 }
             }
         }), 200
-    
+
     except Exception as e:
         current_app.logger.exception(e)
         return safe_error_response('Failed to generate WhatsApp message')

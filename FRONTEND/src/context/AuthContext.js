@@ -13,20 +13,33 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Check if user is logged in on mount
+  // Check if user is logged in on mount. Re-validates against the server
+  // rather than trusting the cached localStorage user object directly —
+  // otherwise a stale copy (e.g. from before an admin demotion) or a
+  // manually edited one would let AdminRoute's `user.is_admin` check pass
+  // on tampered client-side data alone.
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
     const token = localStorage.getItem('access_token');
 
-    if (storedUser && token) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        localStorage.removeItem('user');
-        localStorage.removeItem('access_token');
-      }
+    if (!token) {
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+
+    authAPI.getProfile()
+      .then((response) => {
+        const freshUser = response.data.user;
+        localStorage.setItem('user', JSON.stringify(freshUser));
+        setUser(freshUser);
+      })
+      .catch((err) => {
+        if (err.response?.status === 401) {
+          localStorage.removeItem('user');
+          localStorage.removeItem('access_token');
+        }
+        setUser(null);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const register = async (username, email, password, fullName, phone) => {
@@ -45,6 +58,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('access_token', access_token);
       localStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
+      window.dispatchEvent(new Event('auth-login'));
 
       return userData;
     } catch (err) {
@@ -64,6 +78,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('access_token', access_token);
       localStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
+      window.dispatchEvent(new Event('auth-login'));
 
       return userData;
     } catch (err) {
@@ -77,6 +92,9 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('user');
     setUser(null);
+    // Let CartContext (and anything else session-scoped) know to reset —
+    // it has no other way to find out a manual logout just happened.
+    window.dispatchEvent(new Event('auth-logout'));
   };
 
   const updateProfile = async (updates) => {

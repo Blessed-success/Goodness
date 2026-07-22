@@ -6,7 +6,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { FiToggleRight, FiToggleLeft, FiSearch } from 'react-icons/fi';
-import AdminLayout from '../components/AdminLayout';
 import Swal from 'sweetalert2';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
@@ -106,7 +105,6 @@ const AdminUsers = () => {
   };
 
   return (
-    <AdminLayout>
       <div className="space-y-6">
         {/* Header */}
         <div>
@@ -262,7 +260,6 @@ const AdminUsers = () => {
           </div>
         </div>
       </div>
-    </AdminLayout>
   );
 };
 

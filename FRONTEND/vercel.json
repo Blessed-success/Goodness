@@ -3,6 +3,6 @@
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "env": {
-    "REACT_APP_API_URL": "https://blessednet-api.onrender.com/api"
+    "REACT_APP_API_BASE_URL": "https://api.ever-flourishing.com/api"
   }
 }

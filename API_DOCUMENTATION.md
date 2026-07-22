@@ -1,6 +1,6 @@
-# BlessedNet Wholesale Hub - API Documentation
+# Nexus Wholesale Hub - API Documentation
 
-Complete REST API documentation for the BlessedNet backend.
+Complete REST API documentation for the Nexus backend.
 
 **Base URL**: `http://localhost:5000/api` (development)
 
@@ -14,8 +14,9 @@ Complete REST API documentation for the BlessedNet backend.
 4. [Orders](#orders)
 5. [Payment](#payment)
 6. [Admin](#admin)
-7. [Response Format](#response-format)
-8. [Error Codes](#error-codes)
+7. [Wishlist, Reviews, Notifications & Vendors](#wishlist-reviews-notifications--vendors)
+8. [Response Format](#response-format)
+9. [Error Codes](#error-codes)
 
 ---
 
@@ -701,6 +702,38 @@ Authorization: Bearer ADMIN_TOKEN
   }
 }
 ```
+
+---
+
+## Wishlist, Reviews, Notifications & Vendors
+
+Full detail in [MARKETPLACE_UPGRADE_GUIDE.md](./MARKETPLACE_UPGRADE_GUIDE.md). Quick reference:
+
+### Wishlist
+- `GET /wishlist` — current user's saved products
+- `POST /wishlist` `{ "product_id": 1 }` — save a product
+- `DELETE /wishlist/<product_id>` — remove a product
+
+### Reviews
+- `GET /reviews/product/<product_id>` — paginated reviews + rating breakdown (public)
+- `POST /reviews` `{ "product_id": 1, "rating": 5, "title": "...", "body": "..." }` — create/update your review (one per user per product)
+- `DELETE /reviews/<id>` — owner or admin only
+
+### Notifications
+- `GET /notifications` — paginated list + `unread_count`
+- `PUT /notifications/<id>/read`
+- `PUT /notifications/read-all`
+
+### Vendors (Marketplace)
+- `POST /vendors/apply` `{ "store_name": "...", "description": "...", "whatsapp_number": "..." }` — apply to sell (pending admin approval)
+- `GET /vendors/<slug>` — public storefront profile
+- `GET /vendors/me` / `PUT /vendors/me` — your own vendor profile
+- `GET /vendors/me/products` / `GET /vendors/me/orders` / `GET /vendors/me/earnings` — your store's data
+- `GET /admin/vendors` / `PUT /admin/vendors/<id>` `{ "is_approved": true, "commission_percent": 10 }` — admin approval + commission control
+- `GET /admin/vendor-earnings` / `PUT /admin/vendor-earnings/<id>/mark-paid` — commission ledger (manual payout reconciliation, no automated transfer)
+
+### Image Search
+- `POST /products/search-by-image` — multipart `file` upload, returns up to 20 color-similar products. Approximate (color/shape similarity), not object recognition — see the upgrade guide for why.
 
 ---
 
