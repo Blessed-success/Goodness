@@ -6,11 +6,13 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { automationAPI, categoriesAPI } from '../api';
-import { FiEdit2, FiTrash2, FiPlus, FiSearch, FiImage } from 'react-icons/fi';
+import { FiEdit2, FiTrash2, FiPlus, FiSearch, FiImage, FiX } from 'react-icons/fi';
 import PlaceholderImage from '../components/ui/PlaceholderImage';
 import Swal from 'sweetalert2';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const MAX_PRODUCT_IMAGES = 10;
+const RECOMMENDED_MIN_IMAGES = 5;
 
 const AdminProducts = () => {
   const [products, setProducts] = useState([]);
@@ -30,6 +32,7 @@ const AdminProducts = () => {
     price: '',
     discount_percent: '',
     image_url: '',
+    images: [],
     stock_quantity: '',
     rating: '5.0',
     is_featured: false,
@@ -67,33 +70,63 @@ const AdminProducts = () => {
   };
 
   const handleImageUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (files.length === 0) return;
+
+    const remainingSlots = MAX_PRODUCT_IMAGES - formData.images.length;
+    if (remainingSlots <= 0) {
+      Swal.fire('Limit reached', `A product can have at most ${MAX_PRODUCT_IMAGES} images`, 'warning');
+      return;
+    }
+    const filesToUpload = files.slice(0, remainingSlots);
+    if (files.length > remainingSlots) {
+      Swal.fire('Some images skipped', `Only ${remainingSlots} more image(s) can be added (max ${MAX_PRODUCT_IMAGES})`, 'warning');
+    }
 
     try {
       setUploadingImage('uploading');
       const token = localStorage.getItem('access_token');
-      const formDataImage = new FormData();
-      formDataImage.append('file', file);
 
-      const response = await axios.post(
-        `${API_BASE_URL}/admin/upload-image`,
-        formDataImage,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data'
+      const uploadedUrls = [];
+      for (const file of filesToUpload) {
+        const formDataImage = new FormData();
+        formDataImage.append('file', file);
+        const response = await axios.post(
+          `${API_BASE_URL}/admin/upload-image`,
+          formDataImage,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'multipart/form-data'
+            }
           }
-        }
-      );
+        );
+        uploadedUrls.push(response.data.data.url);
+      }
 
-      setFormData({ ...formData, image_url: response.data.data.url });
+      setFormData((prev) => {
+        const images = [...prev.images, ...uploadedUrls];
+        return { ...prev, images, image_url: prev.image_url || images[0] };
+      });
       setUploadingImage('success');
       setTimeout(() => setUploadingImage(null), 2000);
     } catch (err) {
       Swal.fire('Error', 'Failed to upload image', 'error');
       setUploadingImage(null);
     }
+  };
+
+  const handleRemoveImage = (index) => {
+    setFormData((prev) => {
+      const images = prev.images.filter((_, i) => i !== index);
+      const removed = prev.images[index];
+      return {
+        ...prev,
+        images,
+        image_url: prev.image_url === removed ? (images[0] || '') : prev.image_url
+      };
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -133,7 +166,7 @@ const AdminProducts = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      setFormData(response.data.data);
+      setFormData({ ...response.data.data, images: response.data.data.images || [] });
       setEditingId(id);
       setShowForm(true);
     } catch (err) {
@@ -195,6 +228,7 @@ const AdminProducts = () => {
       price: '',
       discount_percent: '',
       image_url: '',
+      images: [],
       stock_quantity: '',
       rating: '5.0',
       is_featured: false,
@@ -335,27 +369,50 @@ const AdminProducts = () => {
 
             {/* Image Upload */}
             <div className="mt-4">
-              <label className="block text-sm font-semibold mb-2">Product Image</label>
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="w-full"
-                  />
-                  {uploadingImage && (
-                    <p className="text-sm mt-2">{uploadingImage === 'uploading' ? '⏳ Uploading...' : '✅ Uploaded!'}</p>
-                  )}
+              <label className="block text-sm font-semibold mb-2">
+                Product Images ({formData.images.length}/{MAX_PRODUCT_IMAGES})
+              </label>
+              <p className="text-xs text-gray-500 mb-2">
+                Recommended: at least {RECOMMENDED_MIN_IMAGES} images, up to {MAX_PRODUCT_IMAGES}. The first image is used as the cover photo.
+              </p>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleImageUpload}
+                disabled={formData.images.length >= MAX_PRODUCT_IMAGES}
+                className="w-full"
+              />
+              {uploadingImage && (
+                <p className="text-sm mt-2">{uploadingImage === 'uploading' ? '⏳ Uploading...' : '✅ Uploaded!'}</p>
+              )}
+
+              {formData.images.length > 0 && (
+                <div className="mt-3 grid grid-cols-4 sm:grid-cols-6 gap-3">
+                  {formData.images.map((url, index) => (
+                    <div key={url + index} className="relative">
+                      <PlaceholderImage
+                        src={url}
+                        alt={`Product ${index + 1}`}
+                        className="w-full aspect-square object-cover rounded-lg border border-gray-200"
+                      />
+                      {index === 0 && (
+                        <span className="absolute bottom-1 left-1 bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded">
+                          Cover
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveImage(index)}
+                        className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-700"
+                        aria-label="Remove image"
+                      >
+                        <FiX size={12} />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-                {formData.image_url && (
-                  <PlaceholderImage
-                    src={formData.image_url}
-                    alt="Product"
-                    className="w-20 h-20 object-cover rounded-lg"
-                  />
-                )}
-              </div>
+              )}
             </div>
 
             {/* Checkboxes */}

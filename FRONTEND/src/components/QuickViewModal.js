@@ -23,6 +23,8 @@ const QuickViewModal = ({ product, onClose }) => {
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
   const [related, setRelated] = useState([]);
+  const gallery = product.images && product.images.length > 0 ? product.images : [product.image_url];
+  const [activeImage, setActiveImage] = useState(gallery[0]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -83,12 +85,30 @@ const QuickViewModal = ({ product, onClose }) => {
           <FiX size={18} />
         </button>
 
-        <div className="h-56 bg-gray-100 sm:h-full">
-          <PlaceholderImage
-            src={product.image_url}
-            alt={product.name}
-            className="h-full w-full object-cover"
-          />
+        <div className="flex flex-col bg-gray-100 sm:h-full">
+          <div className="h-56 flex-1 sm:h-auto">
+            <PlaceholderImage
+              src={activeImage}
+              alt={product.name}
+              className="h-full w-full object-cover"
+            />
+          </div>
+          {gallery.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto p-2">
+              {gallery.map((url, index) => (
+                <button
+                  key={url + index}
+                  type="button"
+                  onClick={() => setActiveImage(url)}
+                  className={`h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg border-2 ${
+                    activeImage === url ? 'border-primary-600' : 'border-transparent'
+                  }`}
+                >
+                  <PlaceholderImage src={url} alt={`${product.name} ${index + 1}`} className="h-full w-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col p-6">

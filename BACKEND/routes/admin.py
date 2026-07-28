@@ -6,10 +6,12 @@ Handles all admin operations: products, orders, users, dashboard
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from utils.limiter import limiter
-from models import db, User, Product, Category, ProductDescription, ProductAdCampaign, NegotiationMessage, Order, OrderItem, HeroBanner, Vendor, VendorEarning
+from models import db, User, Product, ProductImage, Category, ProductDescription, ProductAdCampaign, NegotiationMessage, Order, OrderItem, HeroBanner, Vendor, VendorEarning
 from datetime import datetime, timedelta
 from sqlalchemy import func
 from utils.security import safe_error_response
+from utils.cloud_storage import upload_file, is_cloud_storage_enabled
+from utils.image_analysis import compute_dominant_color_for_image_url
 from routes.notifications import create_notification
 from routes.whatsapp_bot import send_message
 from utils.ai_helpers import (
@@ -25,24 +27,19 @@ import mimetypes
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 
-# Uploads configuration
-UPLOAD_FOLDER = 'uploads/products'
-UPLOAD_FOLDERS = {
-    'products': 'uploads/products',
-    'categories': 'uploads/categories',
-    'banners': 'uploads/banners',
-    'banner_videos': 'uploads/banner_videos',
-    'vendor_logos': 'uploads/vendor_logos',
-    'vendor_banners': 'uploads/vendor_banners',
-}
+# Uploads configuration. Logical bucket names - resolved to a Cloudinary
+# folder or a local uploads/<name> directory by utils.cloud_storage.
+UPLOAD_TYPES = {'products', 'categories', 'banners', 'banner_videos', 'vendor_logos', 'vendor_banners'}
+MAX_PRODUCT_IMAGES = 10
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
 ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'webm', 'mov'}
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB (images)
 MAX_VIDEO_FILE_SIZE = 40 * 1024 * 1024  # 40MB (hero banner video)
 
-# Create upload folders if they don't exist
-for folder in UPLOAD_FOLDERS.values():
-    os.makedirs(folder, exist_ok=True)
+# Local dev fallback only needs its own directories; Cloudinary needs none.
+if not is_cloud_storage_enabled():
+    for folder in UPLOAD_TYPES:
+        os.makedirs(os.path.join('uploads', folder), exist_ok=True)
 
 
 def is_admin(user_id):
@@ -232,7 +229,11 @@ def create_admin_product():
         sku = data.get('sku')
         if sku and Product.query.filter_by(sku=sku).first():
             return jsonify({'error': 'SKU already exists'}), 409
-        
+
+        # Gallery images (list of URLs already uploaded via /admin/upload-image)
+        images = [u.strip() for u in data.get('images', []) if u and u.strip()][:MAX_PRODUCT_IMAGES]
+        cover_image = data.get('image_url', '') or (images[0] if images else '')
+
         # Create product
         product = Product(
             name=data.get('name').strip(),
@@ -240,7 +241,8 @@ def create_admin_product():
             category=data.get('category').strip(),
             price=float(data.get('price')),
             discount_percent=float(data.get('discount_percent', 0)),
-            image_url=data.get('image_url', ''),
+            image_url=cover_image,
+            dominant_color=compute_dominant_color_for_image_url(cover_image),
             stock_quantity=int(data.get('stock_quantity', 0)),
             sku=sku,
             rating=float(data.get('rating', 5.0)),
@@ -248,10 +250,14 @@ def create_admin_product():
             is_trending=data.get('is_trending', False),
             is_flash_sale=data.get('is_flash_sale', False)
         )
-        
         db.session.add(product)
+        db.session.flush()
+
+        for i, url in enumerate(images):
+            db.session.add(ProductImage(product_id=product.id, image_url=url, sort_order=i))
+
         db.session.commit()
-        
+
         return jsonify({
             'message': 'Product created successfully',
             'data': product.to_dict()
@@ -299,6 +305,15 @@ def update_admin_product(product_id):
             product.discount_percent = float(data['discount_percent'])
         if 'image_url' in data:
             product.image_url = data['image_url']
+        if 'images' in data:
+            images = [u.strip() for u in data['images'] if u and u.strip()][:MAX_PRODUCT_IMAGES]
+            ProductImage.query.filter_by(product_id=product.id).delete()
+            for i, url in enumerate(images):
+                db.session.add(ProductImage(product_id=product.id, image_url=url, sort_order=i))
+            if images and 'image_url' not in data:
+                product.image_url = images[0]
+        if 'image_url' in data or 'images' in data:
+            product.dominant_color = compute_dominant_color_for_image_url(product.image_url)
         if 'stock_quantity' in data:
             product.stock_quantity = int(data['stock_quantity'])
         if 'rating' in data:
@@ -403,19 +418,13 @@ def upload_image():
         if file_size > max_size:
             return jsonify({'error': f'File too large. Maximum {max_size // (1024 * 1024)}MB'}), 400
 
-        # Resolve target folder ('products', 'categories', 'banners' or 'banner_videos')
-        folder = UPLOAD_FOLDERS.get(upload_type, UPLOAD_FOLDER)
+        folder = upload_type if upload_type in UPLOAD_TYPES else 'products'
 
-        # Save file
         filename = secure_filename(file.filename)
         timestamp = int(datetime.utcnow().timestamp())
         filename = f"{timestamp}_{filename}"
-        filepath = os.path.join(folder, filename)
 
-        file.save(filepath)
-
-        # Return file URL
-        file_url = f"/{folder}/{filename}"
+        file_url = upload_file(file, folder, filename)
 
         return jsonify({
             'message': 'Image uploaded successfully',
@@ -429,6 +438,129 @@ def upload_image():
     except Exception as e:
         current_app.logger.exception(e)
         return safe_error_response('Upload failed')
+
+
+@admin_bp.route('/products/<int:product_id>/images', methods=['POST'])
+@jwt_required()
+@limiter.limit("20 per minute")
+def add_product_images(product_id):
+    """Upload and attach one or more gallery images to a product (max 10 total)"""
+    try:
+        user_id = int(get_jwt_identity())
+        product = Product.query.get(product_id)
+
+        if not product:
+            return jsonify({'error': 'Product not found'}), 404
+
+        is_own_vendor = (
+            product.vendor_id is not None
+            and Vendor.query.filter_by(
+                id=product.vendor_id, user_id=user_id, is_approved=True, is_active=True
+            ).first() is not None
+        )
+        if not is_admin(user_id) and not is_own_vendor:
+            return jsonify({'error': 'Admin access required'}), 403
+
+        files = request.files.getlist('files') or request.files.getlist('file')
+        if not files:
+            return jsonify({'error': 'No files provided'}), 400
+
+        existing_count = ProductImage.query.filter_by(product_id=product.id).count()
+        if existing_count + len(files) > MAX_PRODUCT_IMAGES:
+            return jsonify({
+                'error': f'A product can have at most {MAX_PRODUCT_IMAGES} images '
+                         f'({existing_count} already uploaded, {len(files)} submitted)'
+            }), 400
+
+        next_sort_order = existing_count
+        created = []
+        for file in files:
+            if file.filename == '':
+                continue
+            if not allowed_file(file.filename, ALLOWED_EXTENSIONS):
+                return jsonify({'error': f'Invalid file type: {file.filename}'}), 400
+
+            file.seek(0, os.SEEK_END)
+            file_size = file.tell()
+            file.seek(0)
+            if file_size > MAX_FILE_SIZE:
+                return jsonify({'error': f'{file.filename} is too large. Maximum {MAX_FILE_SIZE // (1024 * 1024)}MB'}), 400
+
+            filename = secure_filename(file.filename)
+            timestamp = int(datetime.utcnow().timestamp() * 1000)
+            filename = f"{timestamp}_{filename}"
+            file_url = upload_file(file, 'products', filename)
+
+            image = ProductImage(product_id=product.id, image_url=file_url, sort_order=next_sort_order)
+            db.session.add(image)
+            next_sort_order += 1
+            created.append(image)
+
+        if not product.image_url and created:
+            product.image_url = created[0].image_url
+            product.dominant_color = compute_dominant_color_for_image_url(product.image_url)
+
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Images uploaded successfully',
+            'data': {
+                'images': [img.to_dict() for img in created],
+                'product': product.to_dict(include_stock=True)
+            }
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to upload images')
+
+
+@admin_bp.route('/products/<int:product_id>/images/<int:image_id>', methods=['DELETE'])
+@jwt_required()
+@limiter.limit("30 per minute")
+def delete_product_image(product_id, image_id):
+    """Remove a single gallery image from a product"""
+    try:
+        user_id = int(get_jwt_identity())
+        product = Product.query.get(product_id)
+
+        if not product:
+            return jsonify({'error': 'Product not found'}), 404
+
+        is_own_vendor = (
+            product.vendor_id is not None
+            and Vendor.query.filter_by(
+                id=product.vendor_id, user_id=user_id, is_approved=True, is_active=True
+            ).first() is not None
+        )
+        if not is_admin(user_id) and not is_own_vendor:
+            return jsonify({'error': 'Admin access required'}), 403
+
+        image = ProductImage.query.filter_by(id=image_id, product_id=product.id).first()
+        if not image:
+            return jsonify({'error': 'Image not found'}), 404
+
+        was_cover = product.image_url == image.image_url
+        db.session.delete(image)
+        db.session.flush()
+
+        if was_cover:
+            remaining = ProductImage.query.filter_by(product_id=product.id).order_by(ProductImage.sort_order).first()
+            product.image_url = remaining.image_url if remaining else None
+            product.dominant_color = compute_dominant_color_for_image_url(product.image_url)
+
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Image removed successfully',
+            'data': {'product': product.to_dict(include_stock=True)}
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception(e)
+        return safe_error_response('Failed to remove image')
 
 
 # ==================== CATEGORIES ====================

@@ -9,7 +9,7 @@ from models import db, Product, User, Vendor
 from datetime import datetime
 from sqlalchemy import and_, or_, func
 from utils.security import safe_error_response
-from utils.image_analysis import compute_dominant_color_for_local_path, compute_dominant_color, color_distance
+from utils.image_analysis import compute_dominant_color_for_image_url, compute_dominant_color, color_distance
 from utils.limiter import limiter
 
 products_bp = Blueprint('products', __name__, url_prefix='/api/products')
@@ -324,7 +324,7 @@ def create_product():
             is_trending=bool(data.get('is_trending', False)),
             is_flash_sale=bool(data.get('is_flash_sale', False)),
             vendor_id=vendor_id,
-            dominant_color=compute_dominant_color_for_local_path(image_url)
+            dominant_color=compute_dominant_color_for_image_url(image_url)
         )
 
         db.session.add(product)
@@ -388,7 +388,7 @@ def update_product(product_id):
                     setattr(product, field, data[field].strip() if isinstance(data[field], str) else data[field])
 
         if 'image_url' in data:
-            product.dominant_color = compute_dominant_color_for_local_path(product.image_url)
+            product.dominant_color = compute_dominant_color_for_image_url(product.image_url)
 
         product.updated_at = datetime.utcnow()
         db.session.commit()

@@ -9,8 +9,18 @@ recognize objects or categories.
 """
 
 from PIL import Image
+from urllib.parse import urlparse
+import io
 import math
 import os
+import requests
+
+# Cloudinary always serves from this fixed CDN hostname regardless of which
+# account/cloud_name uploaded the asset, so allowlisting just the host (not
+# the full URL, which is attacker-influenced) lets us fetch our own uploaded
+# images for color analysis without opening up a general SSRF-capable fetch.
+TRUSTED_REMOTE_IMAGE_HOSTS = {'res.cloudinary.com'}
+MAX_REMOTE_IMAGE_BYTES = 10 * 1024 * 1024  # 10MB
 
 
 def compute_dominant_color(file_stream):
@@ -37,20 +47,52 @@ def compute_dominant_color(file_stream):
             pass
 
 
-def compute_dominant_color_for_local_path(image_url):
+def _compute_dominant_color_for_local_path(image_url):
     """For a locally-served upload path like '/uploads/products/foo.jpg',
-    reads the file straight off disk (no network fetch — avoids SSRF risk
-    from arbitrary external image_url values) and returns its dominant
-    color, or None if the path isn't a local upload or can't be read."""
-    if not image_url or not image_url.startswith('/uploads/'):
-        return None
-
+    reads the file straight off disk."""
     relative_path = image_url.lstrip('/')
     if not os.path.isfile(relative_path):
         return None
 
     with open(relative_path, 'rb') as f:
         return compute_dominant_color(f)
+
+
+def _compute_dominant_color_for_remote_url(image_url):
+    """Fetches an image from a known-trusted CDN host (our own Cloudinary
+    uploads) and returns its dominant color. Not a general-purpose URL
+    fetcher: the host allowlist keeps this from being usable as an SSRF
+    vector even though image_url itself is stored data, not a fixed value."""
+    try:
+        parsed = urlparse(image_url)
+        if parsed.hostname not in TRUSTED_REMOTE_IMAGE_HOSTS:
+            return None
+
+        response = requests.get(image_url, timeout=5, stream=True)
+        response.raise_for_status()
+
+        chunks = []
+        total = 0
+        for chunk in response.iter_content(chunk_size=65536):
+            total += len(chunk)
+            if total > MAX_REMOTE_IMAGE_BYTES:
+                return None
+            chunks.append(chunk)
+
+        return compute_dominant_color(io.BytesIO(b''.join(chunks)))
+    except Exception:
+        return None
+
+
+def compute_dominant_color_for_image_url(image_url):
+    """Returns the dominant color for a product's image_url, whether it's a
+    locally-served upload path or an absolute URL from a trusted CDN host.
+    Returns None if image_url is empty or from an untrusted/unreadable source."""
+    if not image_url:
+        return None
+    if image_url.startswith('/uploads/'):
+        return _compute_dominant_color_for_local_path(image_url)
+    return _compute_dominant_color_for_remote_url(image_url)
 
 
 def color_distance(hex_a, hex_b):

@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app import app
 from database import db
 from models import Product
-from utils.image_analysis import compute_dominant_color_for_local_path
+from utils.image_analysis import compute_dominant_color_for_image_url
 
 
 def main():
@@ -29,7 +29,7 @@ def main():
         updated = 0
         skipped = 0
         for product in products:
-            color = compute_dominant_color_for_local_path(product.image_url)
+            color = compute_dominant_color_for_image_url(product.image_url)
             if color:
                 product.dominant_color = color
                 updated += 1

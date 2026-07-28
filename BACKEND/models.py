@@ -334,14 +334,21 @@ class Product(db.Model):
     order_items = db.relationship('OrderItem', back_populates='product')
     price_alerts = db.relationship('PriceAlert', back_populates='product', cascade='all, delete-orphan')
     vendor = db.relationship('Vendor', foreign_keys=[vendor_id])
-    
+    images = db.relationship(
+        'ProductImage', back_populates='product',
+        cascade='all, delete-orphan', order_by='ProductImage.sort_order'
+    )
+
     @property
     def discounted_price(self):
         """Calculate discounted price"""
         return self.price * (1 - self.discount_percent / 100)
-    
-    def to_dict(self, include_stock=False):
+
+    def to_dict(self, include_stock=True):
         """Convert to dictionary"""
+        gallery = [img.image_url for img in self.images] if self.images else (
+            [self.image_url] if self.image_url else []
+        )
         data = {
             'id': self.id,
             'name': self.name,
@@ -351,6 +358,7 @@ class Product(db.Model):
             'discount_percent': self.discount_percent,
             'discounted_price': self.discounted_price,
             'image_url': self.image_url,
+            'images': gallery,
             'rating': self.rating,
             'review_count': self.review_count or 0,
             'sku': self.sku,
@@ -363,11 +371,31 @@ class Product(db.Model):
             'vendor_slug': self.vendor.slug if self.vendor_id and self.vendor else None,
             'created_at': self.created_at.isoformat()
         }
-        
+
         if include_stock:
             data['stock_quantity'] = self.stock_quantity
-        
+
         return data
+
+
+class ProductImage(db.Model):
+    """Additional gallery images for a product (up to 10, alongside the primary image_url)"""
+    __tablename__ = 'product_images'
+
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False, index=True)
+    image_url = db.Column(db.String(500), nullable=False)
+    sort_order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    product = db.relationship('Product', back_populates='images')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'image_url': self.image_url,
+            'sort_order': self.sort_order
+        }
 
 
 class ProductDescription(db.Model):
