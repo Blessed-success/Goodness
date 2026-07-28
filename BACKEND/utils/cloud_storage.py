@@ -4,13 +4,23 @@ Persistent file storage for uploaded images.
 Render's filesystem is ephemeral - anything written to local disk (the old
 `uploads/<type>/` behavior) is wiped on every deploy or restart, which is why
 product photos kept disappearing. When CLOUDINARY_URL is configured we upload
-there instead, which is not the app's own case, but if it is not configured
-(e.g. local dev) we fall back to writing under BACKEND/uploads/ as before.
+there instead. If it's missing or malformed (e.g. local dev, or a bad value
+in the dashboard) we fall back to writing under BACKEND/uploads/ as before,
+rather than letting the whole app fail to boot over a bad env var.
 """
 
 import os
 
-_cloudinary_configured = bool(os.getenv('CLOUDINARY_URL'))
+_cloudinary_url = os.getenv('CLOUDINARY_URL', '').strip()
+_cloudinary_configured = _cloudinary_url.startswith('cloudinary://')
+
+if os.getenv('CLOUDINARY_URL') and not _cloudinary_configured:
+    print(
+        "WARNING: CLOUDINARY_URL is set but doesn't start with 'cloudinary://' "
+        "- ignoring it and falling back to local disk storage (uploads won't "
+        "persist across deploys). Copy the full value from your Cloudinary "
+        "dashboard's API keys page, e.g. cloudinary://<api_key>:<api_secret>@<cloud_name>"
+    )
 
 if _cloudinary_configured:
     import cloudinary
