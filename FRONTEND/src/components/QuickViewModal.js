@@ -90,7 +90,7 @@ const QuickViewModal = ({ product, onClose }) => {
             <PlaceholderImage
               src={activeImage}
               alt={product.name}
-              className="h-full w-full object-cover"
+              className="h-full w-full object-contain"
             />
           </div>
           {gallery.length > 1 && (

@@ -58,8 +58,8 @@ module.exports = {
           '50%': { boxShadow: '0 0 0 8px rgba(130, 208, 110, 0)' },
         },
         'ken-burns': {
-          '0%': { transform: 'scale(1)' },
-          '100%': { transform: 'scale(1.12)' },
+          '0%': { transform: 'scale(1.06)' },
+          '100%': { transform: 'scale(1.18)' },
         },
       },
       animation: {

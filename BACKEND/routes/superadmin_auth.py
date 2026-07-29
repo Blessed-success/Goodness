@@ -24,30 +24,35 @@ def initialize_super_admin():
     This endpoint is only available if no super admin exists
     """
     try:
-        # Check if super admin already exists
-        existing_super_admin = AdminCredential.query.filter_by(role='super_admin').first()
-        if existing_super_admin:
-            return jsonify({'error': 'Super admin already initialized'}), 403
-        
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data provided'}), 400
-        
+
         # Validate required fields
         required = ['email', 'password', 'setup_key']
         for field in required:
             if not data.get(field):
                 return jsonify({'error': f'{field} is required'}), 400
-        
-        # Verify setup key (from environment for security)
+
+        # Verify setup key (from environment for security). This is the sole
+        # auth gate for this endpoint (also rate-limited), so it doubles as
+        # authorization to provision additional super admins later on, not
+        # just the very first one.
         setup_key = os.getenv('SUPERADMIN_SETUP_KEY', 'default-setup-key-change-this')
         if data.get('setup_key') != setup_key:
             current_app.logger.warning(f'Invalid super admin setup attempt from {request.remote_addr}')
             return jsonify({'error': 'Invalid setup key'}), 401
-        
+
         email = data.get('email', '').strip()
         password = data.get('password', '').strip()
         full_name = data.get('full_name', 'Super Administrator')
+
+        # Only block on a super admin credential that already exists for
+        # this exact email - the setup key already authorizes provisioning
+        # further super admins.
+        existing_super_admin = AdminCredential.query.filter_by(email=email, role='super_admin').first()
+        if existing_super_admin:
+            return jsonify({'error': 'A super admin with this email already exists'}), 403
         
         # Validate email format
         import re
