@@ -20,7 +20,7 @@ PAYSTACK_BASE_URL = 'https://api.paystack.co'
 
 
 def get_paystack_secret_key():
-    secret_key = current_app.config.get('PAYSTACK_SECRET_KEY')
+    secret_key = current_app.config.get('PAYSTACK_SECRET_KEYi')
     if not secret_key:
         raise RuntimeError('Paystack secret key is not configured')
     return secret_key
