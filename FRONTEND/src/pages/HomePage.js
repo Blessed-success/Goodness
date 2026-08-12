@@ -175,7 +175,7 @@ const HomePage = () => {
                   </div>
                 </Card>
 
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-2 gap-3 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
                   {flashSaleProducts.slice(0, 6).map((product) => (
                     <ProductCard key={product.id} product={product} />
                   ))}
@@ -196,7 +196,7 @@ const HomePage = () => {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-2 gap-3 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
                   {trendingProducts.slice(0, 6).map((product) => (
                     <ProductCard key={product.id} product={product} />
                   ))}
@@ -217,7 +217,7 @@ const HomePage = () => {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-2 gap-3 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
                   {products.slice(0, 6).map((product) => (
                     <ProductCard key={product.id} product={product} />
                   ))}

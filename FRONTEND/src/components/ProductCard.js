@@ -87,7 +87,7 @@ const ProductCard = ({ product, isBestDeal = false }) => {
   return (
     <Card hoverable padded={false} className="group overflow-hidden">
       {/* Product Image */}
-      <div className="relative h-48 overflow-hidden bg-gray-100">
+      <div className="relative h-32 overflow-hidden bg-gray-100 sm:h-40 md:h-48">
         <PlaceholderImage
           src={product.image_url}
           alt={product.name}
@@ -95,7 +95,7 @@ const ProductCard = ({ product, isBestDeal = false }) => {
         />
 
         {/* Badges */}
-        <div className="absolute left-3 top-3 flex flex-col gap-1.5">
+        <div className="absolute left-1.5 top-1.5 flex flex-col gap-1 sm:left-3 sm:top-3 sm:gap-1.5">
           {isBestDeal && <Badge variant="dark">Best Deal</Badge>}
           {product.is_flash_sale && <Badge variant="danger">Flash Sale</Badge>}
           {product.is_trending && <Badge variant="warning">Trending</Badge>}
@@ -103,37 +103,39 @@ const ProductCard = ({ product, isBestDeal = false }) => {
         </div>
 
         {/* Wishlist + Compare Buttons */}
-        <div className="absolute right-3 top-3 flex flex-col gap-1.5">
+        <div className="absolute right-1.5 top-1.5 flex flex-col gap-1 sm:right-3 sm:top-3 sm:gap-1.5">
           <button
             onClick={handleToggleWishlist}
             title="Save to wishlist"
-            className="rounded-full bg-white/90 p-2 shadow-sm hover:bg-white transition-colors"
+            className="rounded-full bg-white/90 p-1.5 shadow-sm hover:bg-white transition-colors sm:p-2"
           >
-            <FiHeart size={16} fill={liked ? '#ef4444' : 'none'} color={liked ? '#ef4444' : '#6b7280'} />
+            <FiHeart size={14} className="sm:hidden" fill={liked ? '#ef4444' : 'none'} color={liked ? '#ef4444' : '#6b7280'} />
+            <FiHeart size={16} className="hidden sm:block" fill={liked ? '#ef4444' : 'none'} color={liked ? '#ef4444' : '#6b7280'} />
           </button>
           <button
             onClick={handleToggleCompare}
             title="Add to compare"
-            className={`rounded-full p-2 shadow-sm transition-colors ${
+            className={`rounded-full p-1.5 shadow-sm transition-colors sm:p-2 ${
               comparing ? 'bg-primary-600 text-white' : 'bg-white/90 text-gray-600 hover:bg-white'
             }`}
           >
-            <FiRepeat size={16} />
+            <FiRepeat size={14} className="sm:hidden" />
+            <FiRepeat size={16} className="hidden sm:block" />
           </button>
         </div>
 
         {/* Quick View */}
         <button
           onClick={() => setQuickViewOpen(true)}
-          className="absolute inset-x-3 bottom-3 flex translate-y-2 items-center justify-center gap-1.5 rounded-lg bg-white/95 py-2 text-xs font-semibold text-primary-800 opacity-0 shadow-sm transition-all duration-200 hover:bg-white group-hover:translate-y-0 group-hover:opacity-100"
+          className="absolute inset-x-2 bottom-2 flex translate-y-2 items-center justify-center gap-1.5 rounded-lg bg-white/95 py-1.5 text-[11px] font-semibold text-primary-800 opacity-0 shadow-sm transition-all duration-200 hover:bg-white group-hover:translate-y-0 group-hover:opacity-100 sm:inset-x-3 sm:bottom-3 sm:py-2 sm:text-xs"
         >
           <FiEye size={14} /> Quick View
         </button>
       </div>
 
       {/* Product Info */}
-      <div className="p-4">
-        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
+      <div className="p-2.5 sm:p-4">
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 sm:mb-1.5 sm:text-xs">
           {product.category}
         </p>
 
@@ -141,50 +143,50 @@ const ProductCard = ({ product, isBestDeal = false }) => {
           <Link
             to={`/store/${product.vendor_slug}`}
             onClick={(e) => e.stopPropagation()}
-            className="mb-1.5 block text-xs font-medium text-primary-600 hover:underline"
+            className="mb-1 block text-[10px] font-medium text-primary-600 hover:underline sm:mb-1.5 sm:text-xs"
           >
             Sold by {product.vendor_name}
           </Link>
         )}
 
-        <h3 className="mb-2 line-clamp-2 font-semibold text-gray-900 hover:text-primary-600">
+        <h3 className="mb-1.5 line-clamp-2 text-sm font-semibold text-gray-900 hover:text-primary-600 sm:mb-2 sm:text-base">
           {product.name}
         </h3>
 
-        <div className="mb-3 flex items-center gap-1 text-sm">
+        <div className="mb-2 flex items-center gap-1 text-xs sm:mb-3 sm:text-sm">
           <FiStar className="text-amber-400" fill="#fbbf24" size={14} />
           <span className="font-medium text-gray-700">{product.rating}</span>
         </div>
 
-        <div className="mb-3">
-          <div className="flex items-baseline gap-2">
-            <span className="text-xl font-bold text-gray-900">GHS {discountedPrice.toFixed(2)}</span>
+        <div className="mb-2 sm:mb-3">
+          <div className="flex flex-wrap items-baseline gap-1 sm:gap-2">
+            <span className="text-base font-bold text-gray-900 sm:text-xl">GHS {discountedPrice.toFixed(2)}</span>
             {product.discount_percent > 0 && (
-              <span className="text-sm text-gray-400 line-through">GHS {product.price.toFixed(2)}</span>
+              <span className="text-xs text-gray-400 line-through sm:text-sm">GHS {product.price.toFixed(2)}</span>
             )}
           </div>
           {product.discount_percent > 0 && (
-            <p className="text-sm font-medium text-green-600">
+            <p className="text-xs font-medium text-green-600 sm:text-sm">
               Save GHS {(product.price - discountedPrice).toFixed(2)} ({savings}%)
             </p>
           )}
         </div>
 
-        <div className="mb-3">
+        <div className="mb-2 sm:mb-3">
           {product.stock_quantity > 10 ? (
-            <span className="text-sm font-medium text-green-600">In Stock</span>
+            <span className="text-xs font-medium text-green-600 sm:text-sm">In Stock</span>
           ) : product.stock_quantity > 0 ? (
-            <span className="text-sm font-medium text-amber-600">Only {product.stock_quantity} left</span>
+            <span className="text-xs font-medium text-amber-600 sm:text-sm">Only {product.stock_quantity} left</span>
           ) : (
-            <span className="text-sm font-medium text-red-500">Out of Stock</span>
+            <span className="text-xs font-medium text-red-500 sm:text-sm">Out of Stock</span>
           )}
         </div>
 
-        <div className="mb-3 flex items-center gap-2">
+        <div className="mb-2 flex items-center gap-1 sm:mb-3 sm:gap-2">
           <button
             onClick={() => setQuantity(Math.max(1, quantity - 1))}
             disabled={product.stock_quantity === 0}
-            className="rounded-lg border border-gray-200 px-2.5 py-1 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+            className="rounded-lg border border-gray-200 px-2 py-1 text-gray-600 hover:bg-gray-50 disabled:opacity-50 sm:px-2.5"
           >
             &minus;
           </button>
@@ -194,39 +196,42 @@ const ProductCard = ({ product, isBestDeal = false }) => {
             onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
             min="1"
             max={product.stock_quantity}
-            className="w-12 rounded-lg border border-gray-200 py-1 text-center"
+            className="w-10 rounded-lg border border-gray-200 py-1 text-center text-sm sm:w-12"
             disabled={product.stock_quantity === 0}
           />
           <button
             onClick={() => setQuantity(Math.min(product.stock_quantity, quantity + 1))}
             disabled={product.stock_quantity === 0}
-            className="rounded-lg border border-gray-200 px-2.5 py-1 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+            className="rounded-lg border border-gray-200 px-2 py-1 text-gray-600 hover:bg-gray-50 disabled:opacity-50 sm:px-2.5"
           >
             +
           </button>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5 sm:space-y-2">
           <Button
+            size="sm"
             onClick={handleAddToCart}
             disabled={product.stock_quantity === 0}
             loading={loading}
             fullWidth
+            className="text-xs sm:text-sm"
           >
-            <FiShoppingCart size={16} />
-            Add to Cart
+            <FiShoppingCart size={14} />
+            <span className="truncate">Add to Cart</span>
           </Button>
 
           <Button
+            size="sm"
             variant="outline"
             onClick={handleWhatsAppOrder}
             disabled={loading}
             fullWidth
-            className="border-green-200 text-green-700 hover:bg-green-50"
+            className="border-green-200 text-xs text-green-700 hover:bg-green-50 sm:text-sm"
             title="Send product details to WhatsApp for direct quote"
           >
-            <FiMessageCircle size={16} />
-            WhatsApp Order
+            <FiMessageCircle size={14} />
+            <span className="truncate">WhatsApp Order</span>
           </Button>
         </div>
       </div>

@@ -415,7 +415,7 @@ const ProductsPage = () => {
                   </button>
                 </div>
                 {visualResults.length > 0 ? (
-                  <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  <div className="mb-8 grid grid-cols-2 gap-3 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
                     {visualResults.map((product) => (
                       <ProductCard key={product.id} product={product} />
                     ))}
@@ -435,7 +435,7 @@ const ProductsPage = () => {
                   Showing {products.length} of {pagination.total} products
                 </div>
 
-                <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <div className="mb-8 grid grid-cols-2 gap-3 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
                   {products.map((product) => (
                     <ProductCard
                       key={product.id}

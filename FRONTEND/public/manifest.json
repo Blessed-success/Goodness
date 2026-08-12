@@ -9,7 +9,7 @@
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
   ],
   "start_url": ".",
-  "display": "standalone",
+  "display": "browser",
   "theme_color": "#175036",
   "background_color": "#ffffff"
 }
