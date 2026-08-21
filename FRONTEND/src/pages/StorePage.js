@@ -11,6 +11,7 @@ import { vendorAPI, productsAPI } from '../api';
 import ProductCard from '../components/ProductCard';
 import PlaceholderImage from '../components/ui/PlaceholderImage';
 import Card from '../components/ui/Card';
+import { toWhatsAppNumber } from '../utils/whatsapp';
 
 const StorePage = () => {
   const { slug } = useParams();
@@ -80,7 +81,7 @@ const StorePage = () => {
           </div>
           {vendor.whatsapp_number && (
             <a
-              href={`https://wa.me/${vendor.whatsapp_number.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi ${vendor.store_name}, I saw your store on Nexus and I'd like to ask about your products.`)}`}
+              href={`https://wa.me/${toWhatsAppNumber(vendor.whatsapp_number)}?text=${encodeURIComponent(`Hi ${vendor.store_name}, I saw your store on Nexus and I'd like to ask about your products.`)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="mb-1 flex flex-shrink-0 items-center gap-2 rounded-full bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-700"

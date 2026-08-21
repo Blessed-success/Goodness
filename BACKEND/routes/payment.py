@@ -495,9 +495,13 @@ def whatsapp_order():
             reference_label = product.name
 
         # Get WhatsApp number from environment. WhatsApp's click-to-chat links
-        # require digits only (no '+', spaces, or dashes) or the link fails.
+        # require digits-only international format (no '+', spaces, dashes,
+        # or leading 0) or the link fails - Ghana numbers are commonly
+        # entered in local format (0502683544), so normalize that too.
         whatsapp_number_raw = os.getenv('WHATSAPP_BUSINESS_PHONE', os.getenv('WHATSAPP_BUSINESS_PHONE_NUMBER', '233xxxxxxxxx'))
         whatsapp_number = re.sub(r'\D', '', whatsapp_number_raw)
+        if whatsapp_number.startswith('0'):
+            whatsapp_number = '233' + whatsapp_number[1:]
 
         # Prepare message
         message = f"""

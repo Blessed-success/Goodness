@@ -7,9 +7,10 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { FiMessageCircle, FiMapPin } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
+import { toWhatsAppNumber } from '../utils/whatsapp';
 import logo from '../assets/nexus-logo.png';
 
-const WHATSAPP_NUMBER = process.env.REACT_APP_WHATSAPP_NUMBER;
+const WHATSAPP_NUMBER = toWhatsAppNumber(process.env.REACT_APP_WHATSAPP_NUMBER);
 
 const Footer = () => {
   const year = new Date().getFullYear();

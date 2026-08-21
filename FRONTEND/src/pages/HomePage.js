@@ -20,8 +20,9 @@ import Reveal from '../components/home/Reveal';
 import RecentlyViewedStrip from '../components/home/RecentlyViewedStrip';
 import RecommendedForYou from '../components/home/RecommendedForYou';
 import { productsAPI, categoriesAPI, heroBannerAPI } from '../api';
+import { toWhatsAppNumber } from '../utils/whatsapp';
 
-const WHATSAPP_NUMBER = process.env.REACT_APP_WHATSAPP_NUMBER;
+const WHATSAPP_NUMBER = toWhatsAppNumber(process.env.REACT_APP_WHATSAPP_NUMBER);
 
 const HOW_IT_WORKS = [
   { icon: FiSearch, title: 'Browse & Order', description: 'Explore wholesale products by category and add what you need to your cart.' },
