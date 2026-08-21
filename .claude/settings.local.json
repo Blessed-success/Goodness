@@ -10,7 +10,9 @@
       "Bash(python -c ' *)",
       "Bash(python -m json.tool)",
       "Bash(curl -s --max-time 20 http://localhost:3000/static/js/bundle.js -o /c/Users/Nana/AppData/Local/Temp/bundle2.js)",
-      "Read(//c/Users/Nana/AppData/Local/Temp/**)"
+      "Read(//c/Users/Nana/AppData/Local/Temp/**)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }
