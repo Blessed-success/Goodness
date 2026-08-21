@@ -53,7 +53,7 @@ const RecommendedForYou = () => {
   return (
     <div className="mx-auto max-w-7xl px-4">
       <h2 className="mb-6 text-2xl font-bold text-gray-900 md:text-3xl">{heading}</h2>
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
         {products.map((product) => (
           <ProductCard key={product.id} product={product} />
         ))}

@@ -99,7 +99,7 @@ const StorePage = () => {
         {products.length === 0 ? (
           <p className="pb-16 text-gray-500">This store hasn't listed any products yet.</p>
         ) : (
-          <div className="grid grid-cols-1 gap-6 pb-16 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 pb-16 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
             {products.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
